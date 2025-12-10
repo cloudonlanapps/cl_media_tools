@@ -131,6 +131,8 @@ class MQTTBroadcaster(BroadcasterBase):
 class NoOpBroadcaster(BroadcasterBase):
     """No-operation broadcaster for when MQTT is disabled or unavailable."""
 
+    connected: bool
+
     def __init__(self, broker: str, port: int):
         self.connected = True
 
