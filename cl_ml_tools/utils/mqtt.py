@@ -140,7 +140,9 @@ class MQTTBroadcaster(BroadcasterBase):
         else:
             logger.error(f"MQTT failed: reason={reason_code}, props={properties}")
 
-    def _on_disconnect(self, client, userdata, reason_code, properties):
+    def _on_disconnect(
+        self, client, userdata, disconnect_flags, reason_code, properties
+    ):
         self.connected = False
         logger.warning(f"MQTT disconnected: {reason_code}")
 
