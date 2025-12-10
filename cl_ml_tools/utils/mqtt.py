@@ -10,6 +10,8 @@ import paho.mqtt.client as mqtt
 logger = logging.getLogger(__name__)
 
 
+# NoOpBroadcaster must not require configuration. So protocol
+# should not enforce broker nad port mandatory
 class BroadcasterBase(Protocol):
     connected: bool
 
@@ -41,7 +43,7 @@ class MQTTBroadcaster(BroadcasterBase):
     """MQTT event broadcaster using modern MQTT v5 protocol."""
 
     def __init__(self, broker: Optional[str] = None, port: Optional[int] = None):
-        if not self.broker or not self.port:
+        if not broker or not port:
             raise Exception(
                 "MQTT broadcaster must be provided with borker and its port"
             )
