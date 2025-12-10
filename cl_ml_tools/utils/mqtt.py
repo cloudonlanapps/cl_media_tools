@@ -43,7 +43,7 @@ class MQTTBroadcaster:
             self.client.disconnect()
             self.connected = False
 
-    def publish_event(self, *, topic: str, payload: str) -> bool:
+    def publish_event(self, *, topic: str, payload: str, qos: int = 1) -> bool:
         if not self.connected or not self.client:
             return False
 
