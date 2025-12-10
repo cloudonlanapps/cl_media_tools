@@ -43,30 +43,21 @@ class MQTTBroadcaster:
             self.client.disconnect()
             self.connected = False
 
-    def publish_event(
-        self, topic: str, event_type: str, job_id: str, data: dict
-    ) -> bool:
+    def publish_event(self, *, topic: str, payload: str) -> bool:
         if not self.connected or not self.client:
             return False
 
         try:
-            payload = {
-                "job_id": job_id,
-                "event_type": event_type,
-                "timestamp": int(time.time() * 1000),
-                **data,
-            }
+
             # v5: publish returns MQTTMessageInfo with rc result code
-            result = self.client.publish(
-                topic, json.dumps(payload), qos=1, retain=False
-            )
+            result = self.client.publish(topic, payload, qos=1, retain=False)
             return result.rc == mqtt.MQTT_ERR_SUCCESS
         except Exception as e:
             logger.error(f"Error publishing event: {e}")
             return False
 
     def set_will(
-        self, topic: str, payload: str, qos: int = 1, retain: bool = True
+        self, *, topic: str, payload: str, qos: int = 1, retain: bool = True
     ) -> bool:
         """Set MQTT Last Will and Testament message."""
         if not self.client:
@@ -80,7 +71,7 @@ class MQTTBroadcaster:
             logger.error(f"Error setting LWT: {e}")
             return False
 
-    def publish_retained(self, topic: str, payload: str, qos: int = 1) -> bool:
+    def publish_retained(self, *, topic: str, payload: str, qos: int = 1) -> bool:
         if not self.connected or not self.client:
             return False
         try:
@@ -92,7 +83,7 @@ class MQTTBroadcaster:
 
     def clear_retained(self, topic: str, qos: int = 1) -> bool:
         """Clear a retained MQTT message by publishing empty payload."""
-        return self.publish_retained(topic, "", qos=qos)
+        return self.publish_retained(topic=topic, payload="", qos=qos)
 
     #
     # MQTT v5 Callback APIs
