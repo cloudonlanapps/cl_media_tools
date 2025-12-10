@@ -11,8 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class BroadcasterBase(Protocol):
+    connected: bool
+
+    def __init__(self, broker: str, port: int):
+        self.connected = False
+
     def connect(self) -> bool:
-        return True
+        return False
 
     def disconnect(self):
         pass
@@ -21,7 +26,7 @@ class BroadcasterBase(Protocol):
         return False
 
     def set_will(
-        self, *, topic: str, payload: str, qos: int = 1, retain: bool = True
+        self, *, topic: str, payload: str, qos: int = 1, retain: bool = False
     ) -> bool:
         return False
 
@@ -125,6 +130,9 @@ class MQTTBroadcaster(BroadcasterBase):
 
 class NoOpBroadcaster(BroadcasterBase):
     """No-operation broadcaster for when MQTT is disabled or unavailable."""
+
+    def __init__(self, broker: str, port: int):
+        self.connected = True
 
     def connect(self) -> bool:
         return True
