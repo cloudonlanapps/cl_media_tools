@@ -96,6 +96,10 @@ class MQTTBroadcaster(BroadcasterBase):
 
             # v5: publish returns MQTTMessageInfo with rc result code
             result = self.client.publish(topic, payload, qos=1, retain=False)
+            print(f"result is : {result.rc} :: {result.rc == mqtt.MQTT_ERR_SUCCESS}")
+            logger.error(
+                f"result is : {result.rc} :: {result.rc == mqtt.MQTT_ERR_SUCCESS}"
+            )
             return result.rc == mqtt.MQTT_ERR_SUCCESS
         except Exception as e:
             logger.error(f"Error publishing event: {e}")
