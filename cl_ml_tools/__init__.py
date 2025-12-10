@@ -6,6 +6,7 @@ from cl_ml_tools.common.job_repository import JobRepository
 from cl_ml_tools.common.file_storage import FileStorage
 from cl_ml_tools.worker import Worker
 from cl_ml_tools.utils.mqtt import MQTTBroadcaster, NoOpBroadcaster
+from cl_ml_tools.master import create_master_router
 
 __version__ = "0.1.0"
 
@@ -19,4 +20,5 @@ __all__ = [
     "Worker",
     "MQTTBroadcaster",
     "NoOpBroadcaster",
+    "create_master_router",
 ]
