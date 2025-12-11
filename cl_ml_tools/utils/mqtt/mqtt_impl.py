@@ -46,7 +46,7 @@ class MQTTBroadcaster(BroadcasterBase):
     def __init__(self, broker: Optional[str] = None, port: Optional[int] = None):
         if not broker or not port:
             raise Exception(
-                "MQTT broadcaster must be provided with borker and its port"
+                "MQTT broadcaster must be provided with broker and its port"
             )
         self.broker = broker
         self.port = port
@@ -54,11 +54,6 @@ class MQTTBroadcaster(BroadcasterBase):
         self.connected = False
 
     def connect(self) -> bool:
-        if not self.broker or not self.port:
-            logger.warning(
-                f"Failed to configure to MQTT broker:{self.broker}:{self.port}"
-            )
-            return False
         try:
             self.client = mqtt.Client(
                 callback_api_version=CallbackAPIVersion.VERSION2,
@@ -74,7 +69,14 @@ class MQTTBroadcaster(BroadcasterBase):
 
             self.client.loop_start()
             self.client.connect(self.broker, self.port, keepalive=60)
-            return True
+
+            # Wait for connection to be established (up to 5 seconds)
+            timeout = 5
+            start_time = time.time()
+            while not self.connected and (time.time() - start_time) < timeout:
+                time.sleep(0.1)
+
+            return self.connected
         except Exception as e:
             logger.warning(
                 f"Failed to connect to MQTT broker:{self.broker}:{self.port} {e}"
@@ -93,13 +95,8 @@ class MQTTBroadcaster(BroadcasterBase):
             return False
 
         try:
-
             # v5: publish returns MQTTMessageInfo with rc result code
             result = self.client.publish(topic, payload, qos=1, retain=False)
-            print(f"result is : {result.rc} :: {result.rc == mqtt.MQTT_ERR_SUCCESS}")
-            logger.error(
-                f"result is : {result.rc} :: {result.rc == mqtt.MQTT_ERR_SUCCESS}"
-            )
             return result.rc == mqtt.MQTT_ERR_SUCCESS
         except Exception as e:
             logger.error(f"Error publishing event: {e}")
@@ -140,9 +137,9 @@ class MQTTBroadcaster(BroadcasterBase):
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = reason_code == 0
         if self.connected:
-            logger.error("MQTT connected using v5")
+            logger.info("MQTT connected using v5")
         else:
-            logger.error(f"MQTT failed: reason={reason_code}, props={properties}")
+            logger.warning(f"MQTT connection failed: reason={reason_code}, props={properties}")
 
     def _on_disconnect(
         self, client, userdata, disconnect_flags, reason_code, properties
