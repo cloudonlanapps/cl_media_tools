@@ -1,6 +1,7 @@
 """Worker runtime - orchestrates job execution."""
 
 from importlib.metadata import entry_points
+from typing import cast
 
 from .common.compute_module import ComputeModule
 from .common.job_repository import JobRepository, JobUpdate
@@ -24,9 +25,10 @@ def get_task_registry() -> dict[str, ComputeModule[BaseJobParams]]:
 
     for ep in eps:
         try:
-            task_class = ep.load()
-            task = task_class()
-            registry[task.task_type] = task
+            task_class = cast(type[ComputeModule[BaseJobParams]], ep.load())
+            task: ComputeModule[BaseJobParams] = task_class()
+            task_type: str = task.task_type
+            registry[task_type] = task
         except Exception as e:
             # Plugin dependency missing = exception (fail fast)
             raise RuntimeError(f"Failed to load task '{ep.name}': {e}")

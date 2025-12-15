@@ -1,6 +1,6 @@
 """Image resize parameters schema."""
 
-from cl_ml_tools.common.schemas import BaseJobParams
+from ...common.schemas import BaseJobParams
 
 
 class ImageResizeParams(BaseJobParams):

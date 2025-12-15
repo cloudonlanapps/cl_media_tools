@@ -1,7 +1,7 @@
 """Image conversion route factory."""
 
 from pathlib import Path
-from typing import Callable, Literal, Protocol, TypedDict
+from typing import Annotated, Callable, Literal, Protocol, TypedDict
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
@@ -29,13 +29,14 @@ def create_router(
 
     @router.post("/jobs/image_conversion", response_model=JobCreatedResponse)
     async def create_conversion_job(
-        file: UploadFile = File(..., description="Image file to convert"),
-        format: Literal["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff"] = Form(
-            ..., description="Target format"
-        ),
-        quality: int = Form(85, ge=1, le=100, description="Output quality (1-100)"),
-        priority: int = Form(5, ge=0, le=10, description="Job priority (0-10)"),
-        user: UserLike | None = Depends(get_current_user),
+        file: Annotated[UploadFile, File(description="Image file to convert")],
+        format: Annotated[
+            Literal["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff"],
+            Form(description="Target format"),
+        ],
+        quality: Annotated[int, Form(ge=1, le=100, description="Output quality (1-100)")] = 85,
+        priority: Annotated[int, Form(ge=0, le=10, description="Job priority (0-10)")] = 5,
+        user: Annotated[UserLike | None, Depends(get_current_user)] = None,
     ) -> JobCreatedResponse:
         job_id = str(uuid4())
 
@@ -72,5 +73,8 @@ def create_router(
             "job_id": job_id,
             "status": "queued",
         }
+
+    # Mark function as used (accessed via FastAPI decorator)
+    _ = create_conversion_job
 
     return router

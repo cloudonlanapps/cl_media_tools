@@ -2,9 +2,8 @@
 
 from typing import Callable, override
 
-from cl_ml_tools.common.compute_module import ComputeModule
-from cl_ml_tools.common.schemas import BaseJobParams, Job, TaskResult
-
+from ...common.compute_module import ComputeModule
+from ...common.schemas import BaseJobParams, Job, TaskResult
 from .schema import ImageResizeParams
 
 
@@ -51,7 +50,7 @@ class ImageResizeTask(ComputeModule[ImageResizeParams]):
             }
 
         try:
-            processed_files = []
+            processed_files: list[str] = []
             total_files = len(params.input_paths)
 
             for i, (input_path, output_path) in enumerate(
@@ -61,9 +60,7 @@ class ImageResizeTask(ComputeModule[ImageResizeParams]):
                 with Image.open(input_path) as img:
                     # Calculate new size
                     if params.maintain_aspect_ratio:
-                        img.thumbnail(
-                            (params.width, params.height), Image.Resampling.LANCZOS
-                        )
+                        img.thumbnail((params.width, params.height), Image.Resampling.LANCZOS)
                         resized = img
                     else:
                         resized = img.resize(

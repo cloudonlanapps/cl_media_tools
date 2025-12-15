@@ -1,7 +1,7 @@
 """Master module - dynamic route aggregator for FastAPI."""
 
 from importlib.metadata import entry_points
-from typing import Callable, Protocol
+from typing import Callable, Protocol, cast
 
 from fastapi import APIRouter
 
@@ -12,6 +12,13 @@ from .common.job_repository import JobRepository
 class UserLike(Protocol):
     """Protocol for user objects returned by authentication."""
     id: str | None
+
+
+# Type alias for route factory functions loaded from entry points
+RouteFactory = Callable[
+    [JobRepository, FileStorage, Callable[[], UserLike | None]],
+    APIRouter,
+]
 
 
 def create_master_router(
@@ -60,8 +67,8 @@ def create_master_router(
 
     for ep in eps:
         try:
-            create_router = ep.load()  # Load the factory function
-            plugin_router = create_router(repository, file_storage, get_current_user)
+            create_router = cast(RouteFactory, ep.load())  # Load the factory function
+            plugin_router: APIRouter = create_router(repository, file_storage, get_current_user)
             master.include_router(
                 plugin_router
             )  # , tags=[ep.name] WE don't need this tag, all will be listed as compute-plugins

@@ -2,11 +2,14 @@
 
 import logging
 import time
-from typing import Callable, Dict, Optional, Protocol, Tuple
+from typing import Callable, Protocol, override
 from uuid import uuid4
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.client import ConnectFlags, DisconnectFlags, MQTTMessage
 from paho.mqtt.enums import CallbackAPIVersion
+from paho.mqtt.properties import Properties
+from paho.mqtt.reasoncodes import ReasonCode
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +19,7 @@ logger = logging.getLogger(__name__)
 class BroadcasterBase(Protocol):
     connected: bool
 
-    def __init__(self, broker: Optional[str] = None, port: Optional[int] = None):
+    def __init__(self, broker: str | None = None, port: int | None = None):
         self.connected = False
 
     def connect(self) -> bool:
@@ -45,7 +48,7 @@ class BroadcasterBase(Protocol):
         topic: str,
         callback: Callable[[str, str], None],
         qos: int = 1,
-    ) -> Optional[str]:
+    ) -> str | None:
         return None
 
     def unsubscribe(self, subscription_id: str) -> bool:
@@ -55,18 +58,19 @@ class BroadcasterBase(Protocol):
 class MQTTBroadcaster(BroadcasterBase):
     """MQTT event broadcaster using modern MQTT v5 protocol."""
 
-    def __init__(self, broker: Optional[str] = None, port: Optional[int] = None):
+    def __init__(self, broker: str | None = None, port: int | None = None):
         super().__init__(broker, port)
         if not broker or not port:
             raise Exception(
                 "MQTT broadcaster must be provided with broker and its port"
             )
-        self.broker = broker
-        self.port = port
-        self.client: Optional[mqtt.Client] = None
-        self.connected = False
-        self._subscriptions: Dict[str, Tuple[str, Callable[[str, str], None]]] = {}
+        self.broker: str = broker
+        self.port: int = port
+        self.client: mqtt.Client | None = None
+        self.connected: bool = False
+        self._subscriptions: dict[str, tuple[str, Callable[[str, str], None]]] = {}
 
+    @override
     def connect(self) -> bool:
         try:
             self.client = mqtt.Client(
@@ -80,10 +84,10 @@ class MQTTBroadcaster(BroadcasterBase):
             self.client.on_message = self._on_message
 
             # Optional: robust reconnection
-            self.client.reconnect_delay_set(min_delay=1, max_delay=30)
+            _ = self.client.reconnect_delay_set(min_delay=1, max_delay=30)
 
-            self.client.loop_start()
-            self.client.connect(self.broker, self.port, keepalive=60)
+            _ = self.client.loop_start()
+            _ = self.client.connect(self.broker, self.port, keepalive=60)
 
             # Wait for connection to be established (up to 5 seconds)
             timeout = 5
@@ -99,13 +103,15 @@ class MQTTBroadcaster(BroadcasterBase):
             self.connected = False
             return False
 
+    @override
     def disconnect(self):
         self._subscriptions.clear()
         if self.client:
-            self.client.loop_stop()
-            self.client.disconnect()
+            _ = self.client.loop_stop()
+            _ = self.client.disconnect()
             self.connected = False
 
+    @override
     def publish_event(self, *, topic: str, payload: str, qos: int = 1) -> bool:
         if not self.connected or not self.client:
             return False
@@ -118,6 +124,7 @@ class MQTTBroadcaster(BroadcasterBase):
             logger.error(f"Error publishing event: {e}")
             return False
 
+    @override
     def set_will(
         self, *, topic: str, payload: str, qos: int = 1, retain: bool = True
     ) -> bool:
@@ -133,6 +140,7 @@ class MQTTBroadcaster(BroadcasterBase):
             logger.error(f"Error setting LWT: {e}")
             return False
 
+    @override
     def publish_retained(self, *, topic: str, payload: str, qos: int = 1) -> bool:
         if not self.connected or not self.client:
             return False
@@ -143,13 +151,15 @@ class MQTTBroadcaster(BroadcasterBase):
             logger.error(f"Error publishing retained message: {e}")
             return False
 
+    @override
     def clear_retained(self, topic: str, qos: int = 1) -> bool:
         """Clear a retained MQTT message by publishing empty payload."""
         return self.publish_retained(topic=topic, payload="", qos=qos)
 
+    @override
     def subscribe(
         self, *, topic: str, callback: Callable[[str, str], None], qos: int = 1
-    ) -> Optional[str]:
+    ) -> str | None:
         """Subscribe to MQTT topic and register callback.
 
         Args:
@@ -175,7 +185,7 @@ class MQTTBroadcaster(BroadcasterBase):
             already_subscribed = any(t == topic for t, _ in self._subscriptions.values())
 
             if not already_subscribed:
-                result, mid = self.client.subscribe(topic, qos=qos)
+                result, _mid = self.client.subscribe(topic, qos=qos)
                 if result != mqtt.MQTT_ERR_SUCCESS:
                     logger.error(f"Failed to subscribe to {topic}: error code {result}")
                     return None
@@ -190,6 +200,7 @@ class MQTTBroadcaster(BroadcasterBase):
             logger.error(f"Error subscribing to topic {topic}: {e}")
             return None
 
+    @override
     def unsubscribe(self, subscription_id: str) -> bool:
         """Unsubscribe from MQTT topic using subscription ID.
 
@@ -218,7 +229,7 @@ class MQTTBroadcaster(BroadcasterBase):
 
             # Only unsubscribe at MQTT level if no more subscriptions to this topic
             if not still_subscribed:
-                result, mid = self.client.unsubscribe(topic)
+                result, _mid = self.client.unsubscribe(topic)
                 if result != mqtt.MQTT_ERR_SUCCESS:
                     logger.error(f"Failed to unsubscribe from {topic}: error code {result}")
                     return False
@@ -233,7 +244,14 @@ class MQTTBroadcaster(BroadcasterBase):
     #
     # MQTT v5 Callback APIs
     #
-    def _on_connect(self, client, userdata, flags, reason_code, properties):
+    def _on_connect(
+        self,
+        _client: mqtt.Client,
+        _userdata: object,
+        _flags: ConnectFlags,
+        reason_code: ReasonCode,
+        properties: Properties | None,
+    ) -> None:
         self.connected = reason_code == 0
         if self.connected:
             logger.info("MQTT connected using v5")
@@ -241,12 +259,19 @@ class MQTTBroadcaster(BroadcasterBase):
             logger.warning(f"MQTT connection failed: reason={reason_code}, props={properties}")
 
     def _on_disconnect(
-        self, client, userdata, disconnect_flags, reason_code, properties
-    ):
+        self,
+        _client: mqtt.Client,
+        _userdata: object,
+        _disconnect_flags: DisconnectFlags,
+        reason_code: ReasonCode,
+        _properties: Properties | None,
+    ) -> None:
         self.connected = False
         logger.warning(f"MQTT disconnected: {reason_code}")
 
-    def _on_message(self, client, userdata, message):
+    def _on_message(
+        self, _client: mqtt.Client, _userdata: object, message: MQTTMessage
+    ) -> None:
         """Handle incoming MQTT messages (VERSION2 callback)."""
         try:
             received_topic = message.topic
@@ -306,16 +331,19 @@ class NoOpBroadcaster(BroadcasterBase):
 
     connected: bool
 
-    def __init__(self, broker: Optional[str] = None, port: Optional[int] = None):
+    def __init__(self, broker: str | None = None, port: int | None = None):
         super().__init__(broker, port)
         self.connected = True
 
+    @override
     def connect(self) -> bool:
         return True
 
+    @override
     def disconnect(self):
         pass
 
+    @override
     def publish_event(
         self,
         *,
@@ -325,27 +353,32 @@ class NoOpBroadcaster(BroadcasterBase):
     ) -> bool:
         return True
 
+    @override
     def set_will(
         self, *, topic: str, payload: str, qos: int = 1, retain: bool = True
     ) -> bool:
         return True
 
+    @override
     def publish_retained(self, *, topic: str, payload: str, qos: int = 1) -> bool:
         return True
 
+    @override
     def clear_retained(self, topic: str, qos: int = 1) -> bool:
         return True
 
+    @override
     def subscribe(
         self,
         *,
         topic: str,
         callback: Callable[[str, str], None],
         qos: int = 1,
-    ) -> Optional[str]:
+    ) -> str | None:
         """NoOp subscribe - accepts but returns None to indicate failure."""
         return None
 
+    @override
     def unsubscribe(self, subscription_id: str) -> bool:
         """NoOp unsubscribe - accepts but returns False to indicate failure."""
         return False

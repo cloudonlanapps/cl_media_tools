@@ -27,7 +27,7 @@ class TestBaseJobParams:
     def test_output_paths_must_be_unique(self):
         """Test that duplicate output paths are rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            BaseJobParams(
+            _ = BaseJobParams(
                 input_paths=["/input/1.jpg", "/input/2.jpg"],
                 output_paths=["/output/same.jpg", "/output/same.jpg"],
             )
@@ -36,7 +36,7 @@ class TestBaseJobParams:
     def test_path_count_must_match(self):
         """Test that input and output path counts must match."""
         with pytest.raises(ValidationError) as exc_info:
-            BaseJobParams(
+            _ = BaseJobParams(
                 input_paths=["/input/1.jpg", "/input/2.jpg"],
                 output_paths=["/output/1.jpg"],
             )
@@ -69,22 +69,22 @@ class TestJob:
     def test_progress_bounds(self):
         """Test progress must be 0-100."""
         with pytest.raises(ValidationError):
-            Job(job_id="test", task_type="test", params={}, progress=101)
+            _ = Job(job_id="test", task_type="test", params={}, progress=101)
 
         with pytest.raises(ValidationError):
-            Job(job_id="test", task_type="test", params={}, progress=-1)
+            _ = Job(job_id="test", task_type="test", params={}, progress=-1)
 
     def test_from_attributes(self):
         """Test model_config from_attributes."""
 
         class MockDBRow:
-            job_id = "db-123"
-            task_type = "test"
-            params = {"key": "value"}
-            status = "completed"
-            progress = 100
-            task_output = {"result": "success"}
-            error_message = None
+            job_id: str = "db-123"
+            task_type: str = "test"
+            params: dict[str, str] = {"key": "value"}
+            status: str = "completed"
+            progress: int = 100
+            task_output: dict[str, str] = {"result": "success"}
+            error_message: None = None
 
         job = Job.model_validate(MockDBRow())
         assert job.job_id == "db-123"

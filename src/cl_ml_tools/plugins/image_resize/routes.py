@@ -1,22 +1,25 @@
 """Image resize route factory."""
 
-from typing import Callable, Protocol
+from typing import Annotated, Callable, Protocol
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from cl_ml_tools.common.file_storage import FileStorage
-from cl_ml_tools.common.job_repository import JobRepository
-from cl_ml_tools.common.schemas import Job
+from ...common.file_storage import FileStorage
+from ...common.job_repository import JobRepository
+from ...common.schemas import Job
 
 
 class UserLike(Protocol):
     """Protocol for user objects returned by authentication."""
+
     id: str | None
 
 
 def create_router(
-    repository: JobRepository, file_storage: FileStorage, get_current_user: Callable[[], UserLike | None]
+    repository: JobRepository,
+    file_storage: FileStorage,
+    get_current_user: Callable[[], UserLike | None],
 ) -> APIRouter:
     """Create router with injected dependencies.
 
@@ -32,12 +35,12 @@ def create_router(
 
     @router.post("/jobs/image_resize")
     async def create_resize_job(
-        file: UploadFile = File(..., description="Image file to resize"),
-        width: int = Form(..., gt=0, description="Target width in pixels"),
-        height: int = Form(..., gt=0, description="Target height in pixels"),
-        maintain_aspect_ratio: bool = Form(False, description="Maintain aspect ratio"),
-        priority: int = Form(5, ge=0, le=10, description="Job priority (0-10)"),
-        user: UserLike | None = Depends(get_current_user),
+        file: Annotated[UploadFile, File(description="Image file to resize")],
+        width: Annotated[int, Form(gt=0, description="Target width in pixels")],
+        height: Annotated[int, Form(gt=0, description="Target height in pixels")],
+        maintain_aspect_ratio: Annotated[bool, Form(description="Maintain aspect ratio")] = False,
+        priority: Annotated[int, Form(ge=0, le=10, description="Job priority (0-10)")] = 5,
+        user: Annotated[UserLike | None, Depends(get_current_user)] = None,
     ):
         """Create an image resize job.
 
@@ -82,5 +85,8 @@ def create_router(
         _ = repository.add_job(job, created_by=created_by, priority=priority)
 
         return {"job_id": job_id, "status": "queued"}
+
+    # Mark function as used (accessed via FastAPI decorator)
+    _ = create_resize_job
 
     return router

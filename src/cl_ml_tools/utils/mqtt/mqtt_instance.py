@@ -1,21 +1,29 @@
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import TypedDict
 
 from .mqtt_impl import MQTTBroadcaster, NoOpBroadcaster
 
 logger = logging.getLogger(__name__)
 
-_broadcaster: Optional[Union[MQTTBroadcaster, NoOpBroadcaster]] = None
-_broadcaster_config: Optional[Dict[str, Any]] = None
+
+class BroadcasterConfig(TypedDict):
+    """Configuration for broadcaster instance."""
+    broadcast_type: str
+    broker: str | None
+    port: int | None
+
+
+_broadcaster: MQTTBroadcaster | NoOpBroadcaster | None = None
+_broadcaster_config: BroadcasterConfig | None = None
 
 
 def get_broadcaster(
-    broadcast_type: str, broker: Optional[str] = None, port: Optional[int] = None
-) -> Optional[Union[MQTTBroadcaster, NoOpBroadcaster]]:
+    broadcast_type: str, broker: str | None = None, port: int | None = None
+) -> MQTTBroadcaster | NoOpBroadcaster | None:
     """Get or create global broadcaster instance based on config."""
     global _broadcaster, _broadcaster_config
 
-    desired_config = {
+    desired_config: BroadcasterConfig = {
         "broadcast_type": broadcast_type,
         "broker": broker,
         "port": port,
@@ -39,7 +47,7 @@ def get_broadcaster(
             _broadcaster = MQTTBroadcaster(broker, port)
         else:
             _broadcaster = NoOpBroadcaster(broker, port)
-        _broadcaster.connect()
+        _ = _broadcaster.connect()
 
         _broadcaster_config = desired_config
     except Exception as e:
