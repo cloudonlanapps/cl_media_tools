@@ -3,18 +3,18 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Generic, TypeVar
 
-from .schemas import BaseJobParams, Job
+from .schemas import BaseJobParams, Job, TaskResult
 
-R = TypeVar("R")
+P = TypeVar("P", bound=BaseJobParams)
 
 
-class ComputeModule(ABC, Generic[R]):
+class ComputeModule(ABC, Generic[P]):
     """Abstract base class for all compute tasks.
 
     All task plugins must extend this class and implement the required methods.
 
     Example:
-        class ImageResizeTask(ComputeModule[ImageResizeResult]):
+        class ImageResizeTask(ComputeModule):
 
             @property
             def task_type(self) -> str:
@@ -45,9 +45,9 @@ class ComputeModule(ABC, Generic[R]):
     async def execute(
         self,
         job: Job,
-        params: BaseJobParams,
+        params: P,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> R:
+    ) -> TaskResult:
         """Execute the task.
 
         Args:
@@ -56,6 +56,6 @@ class ComputeModule(ABC, Generic[R]):
             progress_callback: Optional callback to report progress (0–100)
 
         Returns:
-            Task-specific result type `R`
+            TaskResult dict with status and optional task_output/error
         """
         ...

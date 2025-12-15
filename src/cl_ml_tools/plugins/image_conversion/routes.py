@@ -27,9 +27,8 @@ def create_router(
 ) -> APIRouter:
     router = APIRouter()
 
-    # pyright: reportCallInDefaultInitializer=false
     @router.post("/jobs/image_conversion", response_model=JobCreatedResponse)
-    async def create_conversion_job(  # pyright: reportUnusedFunction=false
+    async def create_conversion_job(
         file: UploadFile = File(..., description="Image file to convert"),
         format: Literal["png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff"] = Form(
             ..., description="Target format"

@@ -1,7 +1,10 @@
 """FileStorage Protocol - interface for file storage operations."""
 
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from fastapi import UploadFile
 
 
 @runtime_checkable
@@ -59,7 +62,7 @@ class FileStorage(Protocol):
         """
         ...
 
-    async def save_input_file(self, job_id: str, filename: str, file) -> dict[str, str]:
+    async def save_input_file(self, job_id: str, filename: str, file: "UploadFile") -> dict[str, str]:
         """Save uploaded file to job's input directory.
 
         Args:

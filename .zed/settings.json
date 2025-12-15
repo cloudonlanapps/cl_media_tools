@@ -3,7 +3,7 @@
     "basedpyright": {
       "settings": {
         "basedpyright.analysis": {
-          "diagnosticMode": "openFiles", // Or 'openFiles'
+          "diagnosticMode": "openFilesOnly", // Or 'openFiles'
           "inlayHints": {
             "callArgumentNames": false, // Example setting
             "functionReturnTypes": true // Example

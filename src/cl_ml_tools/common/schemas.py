@@ -1,7 +1,7 @@
 """Pydantic schemas for job parameters and data structures."""
 
 from collections.abc import Mapping, Sequence
-from typing import ClassVar
+from typing import ClassVar, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -47,6 +47,19 @@ class BaseJobParams(BaseModel):
 # ─────────────────────────────────────────────────────────────
 
 TaskOutput = Mapping[str, object]
+
+
+# ─────────────────────────────────────────────────────────────
+# Task execution result
+# ─────────────────────────────────────────────────────────────
+
+
+class TaskResult(TypedDict):
+    """Result returned by ComputeModule.execute()."""
+
+    status: str
+    task_output: NotRequired[TaskOutput | None]
+    error: NotRequired[str | None]
 
 
 # ─────────────────────────────────────────────────────────────

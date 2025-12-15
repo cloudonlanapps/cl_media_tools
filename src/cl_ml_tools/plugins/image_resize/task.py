@@ -1,34 +1,37 @@
 """Image resize task implementation."""
 
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Callable, override
 
 from cl_ml_tools.common.compute_module import ComputeModule
-from cl_ml_tools.common.schemas import BaseJobParams, Job
+from cl_ml_tools.common.schemas import BaseJobParams, Job, TaskResult
 
 from .schema import ImageResizeParams
 
 
-class ImageResizeTask(ComputeModule):
+class ImageResizeTask(ComputeModule[ImageResizeParams]):
     """Compute module for resizing images.
 
     Resizes images to specified dimensions using Pillow.
     """
 
     @property
+    @override
     def task_type(self) -> str:
         """Return task type identifier."""
         return "image_resize"
 
-    def get_schema(self) -> Type[BaseJobParams]:
+    @override
+    def get_schema(self) -> type[BaseJobParams]:
         """Return the Pydantic params class for this task."""
         return ImageResizeParams
 
+    @override
     async def execute(
         self,
         job: Job,
         params: ImageResizeParams,
-        progress_callback: Optional[Callable[[int], None]] = None,
-    ) -> Dict[str, Any]:
+        progress_callback: Callable[[int], None] | None = None,
+    ) -> TaskResult:
         """Execute image resize operation.
 
         Args:

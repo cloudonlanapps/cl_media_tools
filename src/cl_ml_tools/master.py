@@ -1,7 +1,7 @@
 """Master module - dynamic route aggregator for FastAPI."""
 
 from importlib.metadata import entry_points
-from typing import Callable
+from typing import Callable, Protocol
 
 from fastapi import APIRouter
 
@@ -9,8 +9,13 @@ from .common.file_storage import FileStorage
 from .common.job_repository import JobRepository
 
 
+class UserLike(Protocol):
+    """Protocol for user objects returned by authentication."""
+    id: str | None
+
+
 def create_master_router(
-    repository: JobRepository, file_storage: FileStorage, get_current_user: Callable
+    repository: JobRepository, file_storage: FileStorage, get_current_user: Callable[[], UserLike | None]
 ) -> APIRouter:
     """Dynamically aggregate all plugin routes from entry points.
 
@@ -67,7 +72,7 @@ def create_master_router(
     return master
 
 
-def get_available_plugins() -> list:
+def get_available_plugins() -> list[str]:
     """Get list of available plugins.
 
     Returns:

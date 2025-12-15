@@ -56,6 +56,7 @@ class MQTTBroadcaster(BroadcasterBase):
     """MQTT event broadcaster using modern MQTT v5 protocol."""
 
     def __init__(self, broker: Optional[str] = None, port: Optional[int] = None):
+        super().__init__(broker, port)
         if not broker or not port:
             raise Exception(
                 "MQTT broadcaster must be provided with broker and its port"
@@ -306,6 +307,7 @@ class NoOpBroadcaster(BroadcasterBase):
     connected: bool
 
     def __init__(self, broker: Optional[str] = None, port: Optional[int] = None):
+        super().__init__(broker, port)
         self.connected = True
 
     def connect(self) -> bool:
