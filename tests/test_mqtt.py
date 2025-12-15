@@ -7,12 +7,12 @@ Requires MQTT broker running on localhost:1883 for MQTTBroadcaster tests.
 import json
 import socket
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from uuid import uuid4
 
 import pytest
 
-from cl_ml_tools import (
+from src.cl_ml_tools import (
     MQTTBroadcaster,
     NoOpBroadcaster,
     get_broadcaster,
@@ -155,28 +155,22 @@ class TestMQTTBroadcaster:
         if not is_mqtt_running():
             pytest.fail(
                 "MQTT broker is not running on localhost:1883. "
-                "Please start MQTT broker to run these tests."
+                + "Please start MQTT broker to run these tests."
             )
 
     def test_init_without_broker(self):
         """Test that MQTTBroadcaster raises exception without broker."""
-        with pytest.raises(
-            Exception, match="MQTT broadcaster must be provided with broker"
-        ):
+        with pytest.raises(Exception, match="MQTT broadcaster must be provided with broker"):
             _ = MQTTBroadcaster(broker=None, port=1883)
 
     def test_init_without_port(self):
         """Test that MQTTBroadcaster raises exception without port."""
-        with pytest.raises(
-            Exception, match="MQTT broadcaster must be provided with broker"
-        ):
+        with pytest.raises(Exception, match="MQTT broadcaster must be provided with broker"):
             _ = MQTTBroadcaster(broker="localhost", port=None)
 
     def test_init_without_both(self):
         """Test that MQTTBroadcaster raises exception without broker and port."""
-        with pytest.raises(
-            Exception, match="MQTT broadcaster must be provided with broker"
-        ):
+        with pytest.raises(Exception, match="MQTT broadcaster must be provided with broker"):
             _ = MQTTBroadcaster(broker=None, port=None)
 
     def test_connect_to_invalid_broker(self):
@@ -337,7 +331,6 @@ class TestMQTTBroadcaster:
         """Test publishing multiple events in sequence."""
         _ = mqtt_broadcaster.connect()
 
-        job_id: str = str(uuid4())
         events: list[tuple[str, dict[str, str | int]]] = [
             ("started", {"status": "processing"}),
             ("progress", {"progress": 25}),
@@ -347,7 +340,6 @@ class TestMQTTBroadcaster:
         ]
 
         for event in events:
-
             result: bool = mqtt_broadcaster.publish_event(
                 topic=test_topic,
                 payload=json.dumps(event),
@@ -359,7 +351,9 @@ class TestMQTTBroadcaster:
     def test_subscribe_without_connection(self, test_topic: str):
         """Test subscribe returns None when not connected."""
         broadcaster: MQTTBroadcaster = MQTTBroadcaster(broker="localhost", port=1883)
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+
+        def callback(_topic: str, _payload: str) -> None:
+            pass
 
         result: str | None = broadcaster.subscribe(topic=test_topic, callback=callback, qos=1)
 
@@ -369,7 +363,9 @@ class TestMQTTBroadcaster:
         """Test successful subscription returns subscription ID."""
         _ = mqtt_broadcaster.connect()
 
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+        def callback(_topic: str, _payload: str) -> None:
+            pass
+
         result: str | None = mqtt_broadcaster.subscribe(topic=test_topic, callback=callback, qos=1)
 
         assert result is not None
@@ -379,7 +375,8 @@ class TestMQTTBroadcaster:
         """Test each subscription gets a unique ID."""
         _ = mqtt_broadcaster.connect()
 
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+        def callback(_topic: str, _payload: str) -> None:
+            pass
 
         id1: str | None = mqtt_broadcaster.subscribe(topic=test_topic, callback=callback)
         id2: str | None = mqtt_broadcaster.subscribe(topic=test_topic, callback=callback)
@@ -392,8 +389,10 @@ class TestMQTTBroadcaster:
         """Test successful unsubscription with subscription ID."""
         _ = mqtt_broadcaster.connect()
 
+        def callback(_topic: str, _payload: str) -> None:
+            pass
+
         # Subscribe first
-        callback: Callable[[str, str], None] = lambda topic, payload: None
         subscription_id: str | None = mqtt_broadcaster.subscribe(
             topic=test_topic, callback=callback
         )
@@ -410,12 +409,17 @@ class TestMQTTBroadcaster:
         result: bool = mqtt_broadcaster.unsubscribe(subscription_id="invalid-id-12345")
         assert result is False
 
-    def test_multiple_subscriptions_same_topic(self, mqtt_broadcaster: MQTTBroadcaster, test_topic: str):
+    def test_multiple_subscriptions_same_topic(
+        self, mqtt_broadcaster: MQTTBroadcaster, test_topic: str
+    ):
         """Test multiple callbacks for same topic."""
         _ = mqtt_broadcaster.connect()
 
-        callback1: Callable[[str, str], None] = lambda topic, payload: None
-        callback2: Callable[[str, str], None] = lambda topic, payload: None
+        def callback1(_topic: str, _payload: str) -> None:
+            pass
+
+        def callback2(_topic: str, _payload: str) -> None:
+            pass
 
         id1: str | None = mqtt_broadcaster.subscribe(topic=test_topic, callback=callback1)
         id2: str | None = mqtt_broadcaster.subscribe(topic=test_topic, callback=callback2)
@@ -428,7 +432,9 @@ class TestMQTTBroadcaster:
         """Test subscribing to multiple different topics."""
         _ = mqtt_broadcaster.connect()
 
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+        def callback(_topic: str, _payload: str) -> None:
+            pass
+
         topic1: str = f"test/topic1/{uuid4()}"
         topic2: str = f"test/topic2/{uuid4()}"
 
@@ -443,7 +449,8 @@ class TestMQTTBroadcaster:
         """Test subscribing with wildcard topics."""
         _ = mqtt_broadcaster.connect()
 
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+        def callback(_topic: str, _payload: str) -> None:
+            pass
 
         # Single level wildcard
         id1: str | None = mqtt_broadcaster.subscribe(topic="test/+/status", callback=callback)
@@ -456,7 +463,9 @@ class TestMQTTBroadcaster:
     def test_subscribe_before_connect(self):
         """Test that subscribe before connect returns None."""
         broadcaster: MQTTBroadcaster = MQTTBroadcaster(broker="localhost", port=1883)
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+
+        def callback(_topic: str, _payload: str) -> None:
+            pass
 
         result: str | None = broadcaster.subscribe(topic="test/topic", callback=callback)
         assert result is None
@@ -467,7 +476,7 @@ class TestMQTTBroadcaster:
 
         call_count: list[int] = [0]
 
-        def bad_callback(topic: str, payload: str) -> None:
+        def bad_callback(_topic: str, _payload: str) -> None:
             call_count[0] += 1
             raise ValueError("Intentional error in callback")
 
@@ -488,7 +497,8 @@ class TestMQTTBroadcaster:
         """Test subscribing with different QoS levels."""
         _ = mqtt_broadcaster.connect()
 
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+        def callback(_topic: str, _payload: str) -> None:
+            pass
 
         # QoS 0
         id0: str | None = mqtt_broadcaster.subscribe(
@@ -632,8 +642,6 @@ class TestMQTTIntegration:
         """Test publishing job failure event."""
         _ = mqtt_broadcaster.connect()
 
-        job_id: str = str(uuid4())
-
         # Job started
         _ = mqtt_broadcaster.publish_event(
             topic=test_topic, payload=json.dumps({"status": "processing"})
@@ -642,9 +650,7 @@ class TestMQTTIntegration:
         # Job failed
         result: bool = mqtt_broadcaster.publish_event(
             topic=test_topic,
-            payload=json.dumps(
-                {"error": "File not found: input.jpg", "status": "failed"}
-            ),
+            payload=json.dumps({"error": "File not found: input.jpg", "status": "failed"}),
         )
         assert result is True
 
@@ -689,7 +695,7 @@ class TestMQTTSubscription:
 
         received_messages: list[str] = []
 
-        def callback(topic: str, payload: str) -> None:
+        def callback(_topic: str, payload: str) -> None:
             received_messages.append(payload)
 
         _ = mqtt_broadcaster.subscribe(topic=test_topic, callback=callback)
@@ -716,10 +722,10 @@ class TestMQTTSubscription:
         received1: list[str] = []
         received2: list[str] = []
 
-        def callback1(topic: str, payload: str) -> None:
+        def callback1(_topic: str, payload: str) -> None:
             received1.append(payload)
 
-        def callback2(topic: str, payload: str) -> None:
+        def callback2(_topic: str, payload: str) -> None:
             received2.append(payload)
 
         # Subscribe with two different callbacks
@@ -775,7 +781,7 @@ class TestMQTTSubscription:
 
         received_messages: list[str] = []
 
-        def callback(topic: str, payload: str) -> None:
+        def callback(_topic: str, payload: str) -> None:
             received_messages.append(payload)
 
         # Subscribe and receive first message
@@ -809,10 +815,10 @@ class TestMQTTSubscription:
         received1: list[str] = []
         received2: list[str] = []
 
-        def callback1(topic: str, payload: str) -> None:
+        def callback1(_topic: str, payload: str) -> None:
             received1.append(payload)
 
-        def callback2(topic: str, payload: str) -> None:
+        def callback2(_topic: str, payload: str) -> None:
             received2.append(payload)
 
         # Subscribe with two callbacks
@@ -848,17 +854,18 @@ class TestMQTTSubscription:
         broadcaster: MQTTBroadcaster = MQTTBroadcaster(broker="localhost", port=1883)
         _ = broadcaster.connect()
 
-        callback: Callable[[str, str], None] = lambda topic, payload: None
+        def callback(_topic: str, _payload: str) -> None:
+            pass
+
         _ = broadcaster.subscribe(topic=test_topic, callback=callback)
 
-        # Verify subscription exists
-        assert len(broadcaster._subscriptions) == 1
+        # Verify subscription exists        assert len(broadcaster._subscriptions) == 1
 
         # Disconnect
         broadcaster.disconnect()
 
         # Subscriptions should be cleared
-        assert len(broadcaster._subscriptions) == 0
+        assert len(broadcaster.subscriptions) == 0
 
 
 class TestBroadcasterMethods:
@@ -866,7 +873,7 @@ class TestBroadcasterMethods:
 
     def test_set_will_method_exists(self):
         """Test that broadcaster has set_will method."""
-        from cl_ml_tools import MQTTBroadcaster
+        from ..src.cl_ml_tools import MQTTBroadcaster
 
         broadcaster: MQTTBroadcaster = MQTTBroadcaster(broker="localhost", port=1883)
         try:
@@ -879,7 +886,7 @@ class TestBroadcasterMethods:
 
     def test_publish_retained_method_exists(self):
         """Test that broadcaster has publish_retained method."""
-        from cl_ml_tools import MQTTBroadcaster
+        from ..src.cl_ml_tools import MQTTBroadcaster
 
         broadcaster: MQTTBroadcaster = MQTTBroadcaster(broker="localhost", port=1883)
         try:
@@ -892,7 +899,7 @@ class TestBroadcasterMethods:
 
     def test_noop_broadcaster_has_methods(self):
         """Test that NoOp broadcaster implements required methods."""
-        from cl_ml_tools import NoOpBroadcaster
+        from ..src.cl_ml_tools import NoOpBroadcaster
 
         broadcaster: NoOpBroadcaster = NoOpBroadcaster()
         assert hasattr(broadcaster, "set_will")
@@ -907,15 +914,13 @@ class TestBroadcasterMethods:
         has implemented the clear_retained method. If this test fails, it means
         the cl_server_shared package needs to be updated.
         """
-        from cl_ml_tools import MQTTBroadcaster
+        from ..src.cl_ml_tools import MQTTBroadcaster
 
         broadcaster: MQTTBroadcaster = MQTTBroadcaster(broker="localhost", port=1883)
         try:
             # Skip test if clear_retained not yet implemented in cl_server_shared
             if not hasattr(broadcaster, "clear_retained"):
-                pytest.skip(
-                    "clear_retained method not yet implemented in cl_server_shared"
-                )
+                pytest.skip("clear_retained method not yet implemented in cl_server_shared")
 
             assert callable(broadcaster.clear_retained)
         finally:

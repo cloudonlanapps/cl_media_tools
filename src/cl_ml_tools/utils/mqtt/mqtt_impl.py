@@ -31,9 +31,7 @@ class BroadcasterBase(Protocol):
     def publish_event(self, *, topic: str, payload: str, qos: int = 1) -> bool:
         return False
 
-    def set_will(
-        self, *, topic: str, payload: str, qos: int = 1, retain: bool = False
-    ) -> bool:
+    def set_will(self, *, topic: str, payload: str, qos: int = 1, retain: bool = False) -> bool:
         return False
 
     def publish_retained(self, *, topic: str, payload: str, qos: int = 1) -> bool:
@@ -61,14 +59,12 @@ class MQTTBroadcaster(BroadcasterBase):
     def __init__(self, broker: str | None = None, port: int | None = None):
         super().__init__(broker, port)
         if not broker or not port:
-            raise Exception(
-                "MQTT broadcaster must be provided with broker and its port"
-            )
+            raise Exception("MQTT broadcaster must be provided with broker and its port")
         self.broker: str = broker
         self.port: int = port
         self.client: mqtt.Client | None = None
         self.connected: bool = False
-        self._subscriptions: dict[str, tuple[str, Callable[[str, str], None]]] = {}
+        self.subscriptions: dict[str, tuple[str, Callable[[str, str], None]]] = {}
 
     @override
     def connect(self) -> bool:
@@ -97,15 +93,13 @@ class MQTTBroadcaster(BroadcasterBase):
 
             return self.connected
         except Exception as e:
-            logger.warning(
-                f"Failed to connect to MQTT broker:{self.broker}:{self.port} {e}"
-            )
+            logger.warning(f"Failed to connect to MQTT broker:{self.broker}:{self.port} {e}")
             self.connected = False
             return False
 
     @override
     def disconnect(self):
-        self._subscriptions.clear()
+        self.subscriptions.clear()
         if self.client:
             _ = self.client.loop_stop()
             _ = self.client.disconnect()
@@ -125,9 +119,7 @@ class MQTTBroadcaster(BroadcasterBase):
             return False
 
     @override
-    def set_will(
-        self, *, topic: str, payload: str, qos: int = 1, retain: bool = True
-    ) -> bool:
+    def set_will(self, *, topic: str, payload: str, qos: int = 1, retain: bool = True) -> bool:
         """Set MQTT Last Will and Testament message."""
         if not self.client:
             return False
@@ -182,7 +174,7 @@ class MQTTBroadcaster(BroadcasterBase):
         try:
             # Check if we already have a subscription to this exact topic
             # If not, subscribe at MQTT level
-            already_subscribed = any(t == topic for t, _ in self._subscriptions.values())
+            already_subscribed = any(t == topic for t, _ in self.subscriptions.values())
 
             if not already_subscribed:
                 result, _mid = self.client.subscribe(topic, qos=qos)
@@ -192,7 +184,7 @@ class MQTTBroadcaster(BroadcasterBase):
 
             # Generate unique subscription ID and store callback
             subscription_id = str(uuid4())
-            self._subscriptions[subscription_id] = (topic, callback)
+            self.subscriptions[subscription_id] = (topic, callback)
             logger.info(f"Subscribed to topic: {topic} (subscription_id: {subscription_id})")
             return subscription_id
 
@@ -215,17 +207,17 @@ class MQTTBroadcaster(BroadcasterBase):
 
         try:
             # Get subscription info
-            if subscription_id not in self._subscriptions:
+            if subscription_id not in self.subscriptions:
                 logger.warning(f"Subscription ID not found: {subscription_id}")
                 return False
 
-            topic, _ = self._subscriptions[subscription_id]
+            topic, _ = self.subscriptions[subscription_id]
 
             # Remove from our tracking
-            del self._subscriptions[subscription_id]
+            del self.subscriptions[subscription_id]
 
             # Check if any other subscriptions exist for this topic
-            still_subscribed = any(t == topic for t, _ in self._subscriptions.values())
+            still_subscribed = any(t == topic for t, _ in self.subscriptions.values())
 
             # Only unsubscribe at MQTT level if no more subscriptions to this topic
             if not still_subscribed:
@@ -269,16 +261,14 @@ class MQTTBroadcaster(BroadcasterBase):
         self.connected = False
         logger.warning(f"MQTT disconnected: {reason_code}")
 
-    def _on_message(
-        self, _client: mqtt.Client, _userdata: object, message: MQTTMessage
-    ) -> None:
+    def _on_message(self, _client: mqtt.Client, _userdata: object, message: MQTTMessage) -> None:
         """Handle incoming MQTT messages (VERSION2 callback)."""
         try:
             received_topic = message.topic
             payload = message.payload.decode("utf-8")
 
             # Invoke all callbacks for matching subscriptions
-            for subscription_id, (subscribed_topic, callback) in self._subscriptions.items():
+            for subscription_id, (subscribed_topic, callback) in self.subscriptions.items():
                 # paho-mqtt handles wildcard matching internally, so we get messages
                 # only for topics we're subscribed to. Just check if topics match.
                 if received_topic == subscribed_topic or self._topic_matches(
@@ -354,9 +344,7 @@ class NoOpBroadcaster(BroadcasterBase):
         return True
 
     @override
-    def set_will(
-        self, *, topic: str, payload: str, qos: int = 1, retain: bool = True
-    ) -> bool:
+    def set_will(self, *, topic: str, payload: str, qos: int = 1, retain: bool = True) -> bool:
         return True
 
     @override
