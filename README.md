@@ -475,6 +475,57 @@ See [`src/cl_ml_tools/plugins/`](src/cl_ml_tools/plugins/) for built-in plugins 
 
 Registered plugins are listed in [`pyproject.toml`](pyproject.toml) under `[project.entry-points."cl_ml_tools.tasks"]`.
 
+### Plugin Algorithm Organization
+
+Plugins that implement computation algorithms follow this structure:
+
+```
+plugin_name/
+├── __init__.py          # Public exports
+├── schema.py            # Pydantic parameter models
+├── task.py              # ComputeModule implementation
+├── routes.py            # FastAPI route factory
+├── algo/                # Pure computation functions (framework-agnostic)
+│   ├── __init__.py
+│   ├── algorithm1.py
+│   └── algorithm2.py
+└── README.md            # Plugin documentation
+```
+
+The `algo/` directory contains pure Python functions that:
+- Are framework-agnostic (no FastAPI, no Pydantic)
+- Have single responsibility (one function = one computation)
+- Can be tested independently
+- Can be reused in other contexts
+
+Examples:
+- **hash plugin**: `algo/image.py`, `algo/video.py`, `algo/md5.py`, `algo/generic.py`
+- **image_resize plugin**: `algo/image_resize.py`
+- **image_conversion plugin**: `algo/image_convert.py`
+
+### Development Setup with uv
+
+This project uses `uv` for fast, reliable dependency management:
+
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e ".[dev]"
+
+# Run type checking
+basedpyright
+
+# Run linting
+ruff check
+
+# Run tests
+pytest
+```
+
 ## Architecture
 
 ```
