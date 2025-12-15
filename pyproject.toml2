@@ -46,14 +46,14 @@ image_conversion = "cl_ml_tools.plugins.image_conversion.routes:create_router"
 
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/cl_ml_tools"]
+[tool.setuptools.packages.find]
+where = ["."]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 asyncio_mode = "auto"

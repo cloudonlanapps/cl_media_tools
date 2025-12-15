@@ -1,11 +1,10 @@
 """Worker runtime - orchestrates job execution."""
 
-from typing import List, Optional, Dict
-
 from importlib.metadata import entry_points
+from typing import Dict, List, Optional
 
-from .common.job_repository import JobRepository
 from .common.compute_module import ComputeModule
+from .common.job_repository import JobRepository
 from .common.schemas import Job
 
 
@@ -68,9 +67,7 @@ class Worker:
             task_registry: Optional custom registry. If None, auto-discovers from entry points.
         """
         self.repository = repository
-        self.task_registry = (
-            task_registry if task_registry is not None else get_task_registry()
-        )
+        self.task_registry = task_registry if task_registry is not None else get_task_registry()
 
     def get_supported_task_types(self) -> List[str]:
         """Return list of task types this worker can handle.

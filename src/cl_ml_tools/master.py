@@ -1,13 +1,12 @@
 """Master module - dynamic route aggregator for FastAPI."""
 
-from typing import Callable
-
 from importlib.metadata import entry_points
+from typing import Callable
 
 from fastapi import APIRouter
 
-from .common.job_repository import JobRepository
 from .common.file_storage import FileStorage
+from .common.job_repository import JobRepository
 
 
 def create_master_router(
