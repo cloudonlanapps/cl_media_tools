@@ -1,10 +1,10 @@
 """Image conversion task implementation."""
 
-from pathlib import Path
-from typing import Callable, Optional, Dict, Any, Type
+from typing import Any, Callable, Dict, Optional, Type
 
 from cl_ml_tools.common.compute_module import ComputeModule
-from cl_ml_tools.common.schemas import Job, BaseJobParams
+from cl_ml_tools.common.schemas import BaseJobParams, Job
+
 from .schema import ImageConversionParams
 
 

@@ -3,10 +3,10 @@
 from typing import Callable
 from uuid import uuid4
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from cl_ml_tools.common.job_repository import JobRepository
 from cl_ml_tools.common.file_storage import FileStorage
+from cl_ml_tools.common.job_repository import JobRepository
 from cl_ml_tools.common.schemas import Job
 
 

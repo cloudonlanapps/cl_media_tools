@@ -1,11 +1,10 @@
 """MQTT broadcaster for job events and worker capabilities."""
 
-from abc import ABC
-import json
 import logging
 import time
 from typing import Callable, Dict, Optional, Protocol, Tuple
 from uuid import uuid4
+
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
