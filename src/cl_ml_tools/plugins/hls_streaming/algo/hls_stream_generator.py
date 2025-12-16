@@ -4,10 +4,10 @@ import random
 import re
 import string
 import subprocess
-from typing import Any, cast, override
+from typing import cast, override
 
 import m3u8
-from m3u8.model import Playlist, StreamInfo
+from m3u8.model import MediaList, Playlist, StreamInfo
 
 # ─────────────────────────────────────────────
 # Exceptions
@@ -84,7 +84,7 @@ class HLSVariant:
         playlist = Playlist(
             uri=self.uri(),
             stream_info=stream_info.__dict__,
-            media=cast(Any, []),
+            media=MediaList(),
             base_uri="",
         )
         return playlist
