@@ -30,17 +30,13 @@ class HLSConversionResult(BaseModel):
     master_playlist: str = Field(description="Path to master M3U8 playlist")
     variants_generated: int = Field(description="Number of variants created")
     total_segments: int = Field(description="Total TS segments across all variants")
-    include_original: bool = Field(
-        description="Whether original quality was included"
-    )
+    include_original: bool = Field(description="Whether original quality was included")
 
 
 class HLSStreamingTaskOutput(BaseModel):
     """Task output structure (Pydantic model, not dict)."""
 
-    files: list[HLSConversionResult] = Field(
-        description="Conversion results for each input file"
-    )
+    files: list[HLSConversionResult] = Field(description="Conversion results for each input file")
     total_files: int = Field(description="Total number of files processed")
 
 
@@ -62,9 +58,7 @@ class HLSStreamingParams(BaseJobParams):
 
     @field_validator("variants")
     @classmethod
-    def validate_variants_not_empty(
-        cls, v: list[VariantConfig]
-    ) -> list[VariantConfig]:
+    def validate_variants_not_empty(cls, v: list[VariantConfig]) -> list[VariantConfig]:
         """Ensure at least one variant is specified."""
         if len(v) == 0:
             raise ValueError("At least one variant must be specified")

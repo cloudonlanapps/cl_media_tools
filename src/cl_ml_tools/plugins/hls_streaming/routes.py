@@ -30,16 +30,10 @@ def create_router(
         file: Annotated[UploadFile, File(description="Video file to convert")],
         variants: Annotated[
             str,
-            Form(
-                description="JSON array of variants: [{resolution:720,bitrate:3500}]"
-            ),
+            Form(description="JSON array of variants: [{resolution:720,bitrate:3500}]"),
         ] = '[{"resolution":720,"bitrate":3500},{"resolution":480,"bitrate":1500}]',
-        include_original: Annotated[
-            bool, Form(description="Include original quality")
-        ] = False,
-        priority: Annotated[
-            int, Form(ge=0, le=10, description="Job priority (0-10)")
-        ] = 5,
+        include_original: Annotated[bool, Form(description="Include original quality")] = False,
+        priority: Annotated[int, Form(ge=0, le=10, description="Job priority (0-10)")] = 5,
         user: Annotated[UserLike | None, Depends(get_current_user)] = None,
     ) -> dict[str, str]:
         """Create an HLS streaming conversion job."""

@@ -40,14 +40,11 @@ class HLSStreamingTask(ComputeModule[HLSStreamingParams]):
                 Path(output_dir).mkdir(parents=True, exist_ok=True)
 
                 # Initialize HLS generator
-                generator = HLSStreamGenerator(
-                    input_file=input_path, output_dir=output_dir
-                )
+                generator = HLSStreamGenerator(input_file=input_path, output_dir=output_dir)
 
                 # Convert variant configs to HLSVariant objects
                 requested_variants = [
-                    HLSVariant(resolution=v.resolution, bitrate=v.bitrate)
-                    for v in params.variants
+                    HLSVariant(resolution=v.resolution, bitrate=v.bitrate) for v in params.variants
                 ]
 
                 # Generate HLS streams

@@ -62,7 +62,9 @@ class FileStorage(Protocol):
         """
         ...
 
-    async def save_input_file(self, job_id: str, filename: str, file: "UploadFile") -> dict[str, str]:
+    async def save_input_file(
+        self, job_id: str, filename: str, file: "UploadFile"
+    ) -> dict[str, str]:
         """Save uploaded file to job's input directory.
 
         Args:

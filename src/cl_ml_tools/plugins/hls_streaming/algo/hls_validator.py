@@ -87,9 +87,7 @@ class HLSValidator:
 
                 # Store variant information
                 bandwidth = (
-                    int(playlist.stream_info.bandwidth)
-                    if playlist.stream_info.bandwidth
-                    else 0
+                    int(playlist.stream_info.bandwidth) if playlist.stream_info.bandwidth else 0
                 )
                 variants_info[uri] = {
                     "resolution": resolution,

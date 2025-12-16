@@ -11,6 +11,7 @@ from .common.job_repository import JobRepository
 
 class UserLike(Protocol):
     """Protocol for user objects returned by authentication."""
+
     id: str | None
 
 
@@ -22,7 +23,9 @@ RouteFactory = Callable[
 
 
 def create_master_router(
-    repository: JobRepository, file_storage: FileStorage, get_current_user: Callable[[], UserLike | None]
+    repository: JobRepository,
+    file_storage: FileStorage,
+    get_current_user: Callable[[], UserLike | None],
 ) -> APIRouter:
     """Dynamically aggregate all plugin routes from entry points.
 

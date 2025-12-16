@@ -68,7 +68,9 @@ class Worker:
             task_registry: Optional custom registry. If None, auto-discovers from entry points.
         """
         self.repository: JobRepository = repository
-        self.task_registry: dict[str, ComputeModule[BaseJobParams]] = task_registry if task_registry is not None else get_task_registry()
+        self.task_registry: dict[str, ComputeModule[BaseJobParams]] = (
+            task_registry if task_registry is not None else get_task_registry()
+        )
 
     def get_supported_task_types(self) -> list[str]:
         """Return list of task types this worker can handle.

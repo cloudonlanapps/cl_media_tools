@@ -36,12 +36,8 @@ def create_router(
     @router.post("/jobs/hash")
     async def create_hash_job(
         file: Annotated[UploadFile, File(description="File to hash")],
-        algorithm: Annotated[
-            str, Form(description="Hash algorithm (sha512 or md5)")
-        ] = "sha512",
-        priority: Annotated[
-            int, Form(ge=0, le=10, description="Job priority (0-10)")
-        ] = 5,
+        algorithm: Annotated[str, Form(description="Hash algorithm (sha512 or md5)")] = "sha512",
+        priority: Annotated[int, Form(ge=0, le=10, description="Job priority (0-10)")] = 5,
         user: Annotated[UserLike | None, Depends(get_current_user)] = None,
     ):
         """Create a hash computation job.

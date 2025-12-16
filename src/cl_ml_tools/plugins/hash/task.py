@@ -85,13 +85,15 @@ class HashTask(ComputeModule[HashParams]):
                     algorithm_used = "sha512_generic"
 
                 # Collect result for this file
-                file_results.append({
-                    "file_path": input_path,
-                    "media_type": media_type.value,
-                    "hash_value": hash_value,
-                    "algorithm_used": algorithm_used,
-                    "process_time": process_time,
-                })
+                file_results.append(
+                    {
+                        "file_path": input_path,
+                        "media_type": media_type.value,
+                        "hash_value": hash_value,
+                        "algorithm_used": algorithm_used,
+                        "process_time": process_time,
+                    }
+                )
 
                 # Report progress
                 if progress_callback:

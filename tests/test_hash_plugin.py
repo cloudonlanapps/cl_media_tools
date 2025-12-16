@@ -54,9 +54,7 @@ class TestHashParams:
 
     def test_md5_algorithm(self):
         """Test md5 algorithm is accepted."""
-        params = HashParams(
-            input_paths=["/test/input.txt"], output_paths=[], algorithm="md5"
-        )
+        params = HashParams(input_paths=["/test/input.txt"], output_paths=[], algorithm="md5")
         assert params.algorithm == "md5"
 
     def test_invalid_algorithm(self):
@@ -355,9 +353,7 @@ class TestHashTask:
         schema = hash_task.get_schema()
         assert schema == HashParams
 
-    async def test_execute_text_file_sha512(
-        self, hash_task: HashTask, temp_text_file: str
-    ) -> None:
+    async def test_execute_text_file_sha512(self, hash_task: HashTask, temp_text_file: str) -> None:
         """Test execute with text file and sha512 algorithm."""
         params = HashParams(
             input_paths=[temp_text_file],
@@ -389,9 +385,7 @@ class TestHashTask:
         assert len(file_result["hash_value"]) == 128
         assert isinstance(file_result["process_time"], float)
 
-    async def test_execute_text_file_md5(
-        self, hash_task: HashTask, temp_text_file: str
-    ) -> None:
+    async def test_execute_text_file_md5(self, hash_task: HashTask, temp_text_file: str) -> None:
         """Test execute with text file and md5 algorithm."""
         params_dict = {
             "input_paths": [temp_text_file],
@@ -413,9 +407,7 @@ class TestHashTask:
         assert file_result["algorithm_used"] == "md5"
         assert len(str(file_result["hash_value"])) == 32
 
-    async def test_execute_image_file(
-        self, hash_task: HashTask, temp_image_file: str
-    ) -> None:
+    async def test_execute_image_file(self, hash_task: HashTask, temp_image_file: str) -> None:
         """Test execute with image file."""
         params_dict = {
             "input_paths": [temp_image_file],
@@ -484,9 +476,7 @@ class TestHashTask:
         assert "error" in result
         assert "not found" in str(result["error"]).lower()
 
-    async def test_execute_multiple_files(
-        self, hash_task: HashTask, tmp_path: Any
-    ) -> None:
+    async def test_execute_multiple_files(self, hash_task: HashTask, tmp_path: Any) -> None:
         """Test batch processing of multiple files."""
         # Create multiple test files
         file1 = tmp_path / "file1.txt"
@@ -518,9 +508,7 @@ class TestHashTask:
         hash2 = result["task_output"]["files"][1]["hash_value"]
         assert hash1 != hash2
 
-    async def test_output_structure(
-        self, hash_task: HashTask, temp_text_file: str
-    ) -> None:
+    async def test_output_structure(self, hash_task: HashTask, temp_text_file: str) -> None:
         """Test task_output has correct structure."""
         params_dict = {
             "input_paths": [temp_text_file],
@@ -554,9 +542,7 @@ class TestHashTask:
         assert "algorithm_used" in file_result
         assert "process_time" in file_result
 
-    async def test_media_type_detection(
-        self, hash_task: HashTask, temp_text_file: str
-    ) -> None:
+    async def test_media_type_detection(self, hash_task: HashTask, temp_text_file: str) -> None:
         """Test media type is correctly detected and included."""
         params_dict = {
             "input_paths": [temp_text_file],

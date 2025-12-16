@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 class BroadcasterConfig(TypedDict):
     """Configuration for broadcaster instance."""
+
     broadcast_type: str
     broker: str | None
     port: int | None
