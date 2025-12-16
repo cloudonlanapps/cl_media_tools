@@ -1,4 +1,4 @@
-"""Video resize computation logic using FFmpeg."""
+"""Video thumbnail computation logic using FFmpeg."""
 
 import subprocess
 from pathlib import Path

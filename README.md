@@ -500,7 +500,7 @@ The `algo/` directory contains pure Python functions that:
 
 Examples:
 - **hash plugin**: `algo/image.py`, `algo/video.py`, `algo/md5.py`, `algo/generic.py`
-- **image_thumbnail plugin**: `algo/image_resize.py`
+- **media_thumbnail plugin**: `algo/image_thumbnail.py`, `algo/video_thumbnail.py`
 - **image_conversion plugin**: `algo/image_convert.py`
 
 ### Development Setup with uv
