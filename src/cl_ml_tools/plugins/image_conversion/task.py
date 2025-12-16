@@ -9,7 +9,7 @@ from .schema import ImageConversionParams
 
 
 class ImageConversionTask(ComputeModule[ImageConversionParams]):
-    """Compute module for converting images between formats."""
+    """Compute module for converting an image between formats."""
 
     @property
     @override
@@ -27,35 +27,38 @@ class ImageConversionTask(ComputeModule[ImageConversionParams]):
         params: ImageConversionParams,
         progress_callback: Callable[[int], None] | None = None,
     ) -> TaskResult:
+        """Convert an image and store it on disk."""
+
         try:
-            processed_files: list[str] = []
-            total_files = len(params.input_paths)
+            _ = image_convert(
+                input_path=params.input_path,
+                output_path=params.output_path,
+                format=params.format,
+                quality=params.quality,
+            )
 
-            for index, (input_path, output_path) in enumerate(
-                zip(params.input_paths, params.output_paths)
-            ):
-                output = image_convert(
-                    input_path=input_path,
-                    output_path=output_path,
-                    format=params.format,
-                    quality=params.quality,
-                )
+            if progress_callback:
+                progress_callback(100)
 
-                processed_files.append(output)
-
-                if progress_callback:
-                    progress = int((index + 1) / total_files * 100)
-                    progress_callback(progress)
-
-            return TaskResult(status = "ok", task_output = {
-                    "processed_files": processed_files,
-                    "format": params.format,
-                    "quality": params.quality,
-                })
+            return TaskResult(
+                status="ok",
+                task_output={},
+            )
 
         except ImportError:
-            return TaskResult(status = "error", error = "Pillow is not installed. Install with: pip install cl_ml_tools[compute]")
-        except FileNotFoundError as e:
-            return TaskResult(status = "error", error = f"Input file not found: {e}")
-        except Exception as e:
-            return TaskResult(status = "error", error = str(e))
+            return TaskResult(
+                status="error",
+                error=("Pillow is not installed. Install with: pip install cl_ml_tools[compute]"),
+            )
+
+        except FileNotFoundError as exc:
+            return TaskResult(
+                status="error",
+                error=f"Input file not found: {exc}",
+            )
+
+        except Exception as exc:  # noqa: BLE001
+            return TaskResult(
+                status="error",
+                error=str(exc),
+            )

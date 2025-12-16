@@ -13,7 +13,7 @@ from .schema import MediaThumbnailParams
 
 
 class MediaThumbnailTask(ComputeModule[MediaThumbnailParams]):
-    """Compute module for resizing images and videos."""
+    """Compute module for generating a thumbnail for an image or video."""
 
     @property
     @override
@@ -31,64 +31,68 @@ class MediaThumbnailTask(ComputeModule[MediaThumbnailParams]):
         params: MediaThumbnailParams,
         progress_callback: Callable[[int], None] | None = None,
     ) -> TaskResult:
+        """Generate a thumbnail and store it on disk."""
+
+        input_path = Path(params.input_path)
+
+        # Phase 1: validate input
+        if not input_path.exists():
+            return TaskResult(
+                status="error",
+                error=f"Input file not found: {params.input_path}",
+            )
+
+        # Phase 2: detect media type
         try:
-            processed_files: list[str] = []
-            media_types: list[str] = []
-            total_files = len(params.input_paths)
+            with input_path.open("rb") as f:
+                media_type = determine_mime(BytesIO(f.read()))
+        except ImportError as exc:
+            return TaskResult(
+                status="error",
+                error=f"Required library not installed: {exc}",
+            )
 
-            for index, (input_path, output_path) in enumerate(
-                zip(params.input_paths, params.output_paths)
-            ):
-                # Detect media type
-                input_file = Path(input_path)
-                if not input_file.exists():
-                    raise FileNotFoundError(f"Input file not found: {input_path}")
+        # Phase 3: generate thumbnail
+        try:
+            if media_type == MediaType.IMAGE:
+                image_thumbnail(
+                    input_path=params.input_path,
+                    output_path=params.output_path,
+                    width=params.width,
+                    height=params.height,
+                    maintain_aspect_ratio=params.maintain_aspect_ratio,
+                )
+                media_type_str = "image"
 
-                with open(input_file, "rb") as f:
-                    bytes_io = BytesIO(f.read())
-                    media_type = determine_mime(bytes_io)
+            elif media_type == MediaType.VIDEO:
+                video_thumbnail(
+                    input_path=params.input_path,
+                    output_path=params.output_path,
+                    width=params.width,
+                    height=params.height,
+                )
+                media_type_str = "video"
 
-                # Route to appropriate thumbnail function
-                if media_type == MediaType.IMAGE:
-                    output = image_thumbnail(
-                        input_path=input_path,
-                        output_path=output_path,
-                        width=params.width,
-                        height=params.height,
-                        maintain_aspect_ratio=params.maintain_aspect_ratio,
-                    )
-                    media_types.append("image")
+            else:
+                return TaskResult(
+                    status="error",
+                    error=(
+                        f"Unsupported media type: {media_type}. Only image and video are supported."
+                    ),
+                )
 
-                elif media_type == MediaType.VIDEO:
-                    output = video_thumbnail(
-                        input_path=input_path,
-                        output_path=output_path,
-                        width=params.width,
-                        height=params.height,
-                    )
-                    media_types.append("video")
+            if progress_callback:
+                progress_callback(100)
 
-                else:
-                    return TaskResult(status = "error", error = f"Unsupported media type: {media_type}. Only image and video are supported.")
+            return TaskResult(
+                status="ok",
+                task_output={
+                    "media_type": media_type_str,
+                },
+            )
 
-                processed_files.append(output)
-
-                if progress_callback:
-                    progress = int((index + 1) / total_files * 100)
-                    progress_callback(progress)
-
-            return TaskResult(status = "ok", task_output = {
-                    "processed_files": processed_files,
-                    "media_types": media_types,
-                    "dimensions": {
-                        "width": params.width,
-                        "height": params.height,
-                    },
-                })
-
-        except ImportError as e:
-            return TaskResult(status = "error", error = f"Required library not installed: {e}")
-        except FileNotFoundError as e:
-            return TaskResult(status = "error", error = str(e))
-        except Exception as e:
-            return TaskResult(status = "error", error = str(e))
+        except Exception as exc:
+            return TaskResult(
+                status="error",
+                error=str(exc),
+            )

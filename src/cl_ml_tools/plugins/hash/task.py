@@ -1,5 +1,6 @@
 """Hash computation task implementation."""
 
+import json
 import time
 from io import BytesIO
 from pathlib import Path
@@ -34,80 +35,79 @@ class HashTask(ComputeModule[HashParams]):
         params: HashParams,
         progress_callback: Callable[[int], None] | None = None,
     ) -> TaskResult:
+        """Compute hash for a single file and persist result to disk."""
+
+        input_path = Path(params.input_path)
+
+        # Phase 1: validate input
+        if not input_path.exists():
+            return TaskResult(
+                status="error",
+                error=f"Input file not found: {params.input_path}",
+            )
+
         try:
-            file_results: list[dict[str, object]] = []
-            total_files = len(params.input_paths)
+            # Read file once
+            file_bytes = input_path.read_bytes()
+            bytes_io = BytesIO(file_bytes)
 
-            for index, input_path in enumerate(params.input_paths):
-                # Read file into BytesIO
-                file_path = Path(input_path)
-                file_bytes = file_path.read_bytes()
-                bytes_io = BytesIO(file_bytes)
+            # Detect media type
+            import magic  # lazy import
 
-                # Determine media type using python-magic
-                import magic
+            mime = magic.Magic(mime=True)
+            file_type = mime.from_buffer(file_bytes)
+            media_type = determine_media_type(bytes_io, file_type)
 
-                mime = magic.Magic(mime=True)
-                file_type = mime.from_buffer(file_bytes)
-                media_type = determine_media_type(bytes_io, file_type)
+            _ = bytes_io.seek(0)
+            start = time.time()
+            # Compute hash
+            if params.algorithm == "md5":
+                hash_value = get_md5_hexdigest(bytes_io)
+                process_time = 0.0
+                algorithm_used = "md5"
 
-                # Route to appropriate hash function
-                hash_value: str
-                process_time: float
+            elif media_type == MediaType.IMAGE:
+                hash_value, process_time = sha512hash_image(bytes_io)
+                algorithm_used = "sha512_image"
 
-                if params.algorithm == "md5":
-                    # MD5 algorithm (any file type)
-                    _ = bytes_io.seek(0)
-                    hash_value = get_md5_hexdigest(bytes_io)
-                    process_time = 0.0  # MD5 algo doesn't track time
-                    algorithm_used = "md5"
+            elif media_type == MediaType.VIDEO:
+                hash_bytes = sha512hash_video2(bytes_io)
+                hash_value = hash_bytes.hex()
+                algorithm_used = "sha512_video"
+            else:
+                hash_value, process_time = sha512hash_generic(bytes_io)
+                algorithm_used = "sha512_generic"
+            process_time = time.time() - start
 
-                elif media_type == MediaType.IMAGE:
-                    # SHA-512 for images (uses PIL)
-                    _ = bytes_io.seek(0)
-                    hash_value, process_time = sha512hash_image(bytes_io)
-                    algorithm_used = "sha512_image"
+            output = {
+                "hash_value": hash_value,
+                "algorithm": algorithm_used,
+                "media_type": media_type.value,
+                "process_time": process_time,
+            }
 
-                elif media_type == MediaType.VIDEO:
-                    # SHA-512 for videos (I-frames only)
-                    _ = bytes_io.seek(0)
-                    start_time = time.time()
-                    hash_bytes = sha512hash_video2(bytes_io)
-                    hash_value = hash_bytes.hex()
-                    end_time = time.time()
-                    process_time = end_time - start_time
-                    algorithm_used = "sha512_video"
+            # Persist hash result
+            with open(params.output_path, "w", encoding="utf-8") as f:
+                json.dump(output, f, indent=2)
 
-                else:
-                    # Generic SHA-512 for TEXT, AUDIO, FILE, URL
-                    _ = bytes_io.seek(0)
-                    hash_value, process_time = sha512hash_generic(bytes_io)
-                    algorithm_used = "sha512_generic"
+            if progress_callback:
+                progress_callback(100)
 
-                # Collect result for this file
-                file_results.append(
-                    {
-                        "file_path": input_path,
-                        "media_type": media_type.value,
-                        "hash_value": hash_value,
-                        "algorithm_used": algorithm_used,
-                        "process_time": process_time,
-                    }
-                )
+            return TaskResult(
+                status="ok",
+                task_output=output,
+            )
 
-                # Report progress
-                if progress_callback:
-                    progress = int((index + 1) / total_files * 100)
-                    progress_callback(progress)
+        except ImportError as exc:
+            return TaskResult(
+                status="error",
+                error=(
+                    f"Missing dependency: {exc}. Install with: pip install cl_ml_tools[compute]"
+                ),
+            )
 
-            return TaskResult(status = "ok", task_output = {
-                    "files": file_results,
-                    "total_files": total_files,
-                })
-
-        except ImportError as e:
-            return TaskResult(status = "error", error = f"Missing dependency: {e}. Install with: pip install cl_ml_tools[compute]")
-        except FileNotFoundError as e:
-            return TaskResult(status = "error", error = f"Input file not found: {e}")
-        except Exception as e:
-            return TaskResult(status = "error", error = f"Hash computation failed: {e}")
+        except Exception as exc:  # noqa: BLE001
+            return TaskResult(
+                status="error",
+                error=f"Hash computation failed: {exc}",
+            )

@@ -16,13 +16,11 @@ class BaseJobParams(BaseModel):
     All task-specific parameter classes should extend this.
     """
 
-    input_paths: list[str] = Field(
-        default_factory=list,
-        description="List of absolute paths to input files",
+    input_path: str = Field(
+        description="path to the input file",
     )
-    output_paths: list[str] = Field(
-        default_factory=list,
-        description="List of absolute paths for output files",
+    output_path: str = Field(
+        description="path to the output file",
     )
 
     @field_validator("output_paths")
