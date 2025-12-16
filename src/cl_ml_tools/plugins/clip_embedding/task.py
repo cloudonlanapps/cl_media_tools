@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ClipEmbeddingTask(ComputeModule[ClipEmbeddingParams]):
     """Compute module for generating MobileCLIP embeddings using ONNX model."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize MobileCLIP embedding task."""
         super().__init__()
         self._embedder: ClipEmbedder | None = None
@@ -34,8 +34,8 @@ class ClipEmbeddingTask(ComputeModule[ClipEmbeddingParams]):
             try:
                 self._embedder = ClipEmbedder()
                 logger.info("MobileCLIP embedder initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize MobileCLIP embedder: {e}")
+            except Exception as exc:
+                logger.error("Failed to initialize MobileCLIP embedder", exc_info=exc)
                 raise
 
         return self._embedder
@@ -47,114 +47,98 @@ class ClipEmbeddingTask(ComputeModule[ClipEmbeddingParams]):
         params: ClipEmbeddingParams,
         progress_callback: Callable[[int], None] | None = None,
     ) -> TaskResult:
-        """Generate MobileCLIP embeddings for input images.
-
-        Args:
-            job: Job instance
-            params: ClipEmbeddingParams with input_paths and normalization settings
-            progress_callback: Optional callback for progress updates (0-100)
-
-        Returns:
-            TaskResult with status and embeddings for each image
-        """
+        """Generate MobileCLIP embeddings for input images."""
         try:
-            # Initialize embedder
             try:
                 embedder = self._get_embedder()
-            except Exception as e:
-                logger.error(f"MobileCLIP embedder initialization failed: {e}")
+            except Exception as exc:
                 return {
                     "status": "error",
                     "error": (
-                        f"Failed to initialize MobileCLIP embedder: {e}. "
-                        "Ensure ONNX Runtime is installed and the model is available. "
-                        "MobileCLIP may require manual ONNX conversion from PyTorch."
+                        f"Failed to initialize MobileCLIP embedder: {exc}. "
+                        "Ensure ONNX Runtime is installed and the model is available."
                     ),
                 }
 
-            file_results: list[dict] = []
+            file_results: list[ClipEmbeddingResult] = []
             total_files = len(params.input_paths)
 
             for index, input_path in enumerate(params.input_paths):
                 try:
-                    # Generate embedding
                     embedding_array = embedder.embed(
                         image_path=input_path,
                         normalize=params.normalize,
                     )
 
-                    # Create ClipEmbedding object
                     clip_embedding = ClipEmbedding.from_numpy(
                         embedding=embedding_array,
                         normalized=params.normalize,
                     )
 
-                    # Create result
                     result = ClipEmbeddingResult(
                         file_path=input_path,
                         embedding=clip_embedding,
                         status="success",
+                        error=None,
                     )
 
-                    file_results.append(result.model_dump())
-
                 except FileNotFoundError:
-                    logger.error(f"File not found: {input_path}")
+                    logger.error("File not found: %s", input_path)
                     result = ClipEmbeddingResult(
                         file_path=input_path,
                         embedding=None,
                         status="error",
                         error="File not found",
                     )
-                    file_results.append(result.model_dump())
 
-                except Exception as e:
-                    logger.error(f"Failed to generate MobileCLIP embedding for {input_path}: {e}")
+                except Exception as exc:
+                    logger.error(
+                        "Failed to generate MobileCLIP embedding for %s",
+                        input_path,
+                        exc_info=exc,
+                    )
                     result = ClipEmbeddingResult(
                         file_path=input_path,
                         embedding=None,
                         status="error",
-                        error=str(e),
+                        error=str(exc),
                     )
-                    file_results.append(result.model_dump())
 
-                # Report progress
+                file_results.append(result)
+
                 if progress_callback:
                     progress = int((index + 1) / total_files * 100)
                     progress_callback(progress)
 
-            # Determine overall status
-            all_success = all(r["status"] == "success" for r in file_results)
-            any_success = any(r["status"] == "success" for r in file_results)
+            all_success = all(r.status == "success" for r in file_results)
+            any_success = any(r.status == "success" for r in file_results)
 
-            if all_success:
-                status = "ok"
-            elif any_success:
-                status = "ok"  # Partial success
-                logger.warning(
-                    f"Partial success: {sum(1 for r in file_results if r['status'] == 'success')}"
-                    f"/{total_files} files processed successfully"
-                )
-            else:
-                status = "error"
+            if not any_success:
                 return {
-                    "status": status,
+                    "status": "error",
                     "error": "Failed to generate embeddings for all files",
                     "task_output": {
-                        "files": file_results,
+                        "files": [r.model_dump() for r in file_results],
                         "total_files": total_files,
                     },
                 }
 
+            if not all_success:
+                logger.warning(
+                    "Partial success: %d/%d files processed successfully",
+                    sum(1 for r in file_results if r.status == "success"),
+                    total_files,
+                )
+
             return {
-                "status": status,
+                "status": "ok",
                 "task_output": {
-                    "files": file_results,
+                    "files": [r.model_dump() for r in file_results],
                     "total_files": total_files,
                     "normalize": params.normalize,
                 },
             }
 
-        except Exception as e:
-            logger.exception(f"Unexpected error in ClipEmbeddingTask: {e}")
-            return {"status": "error", "error": f"Task failed: {str(e)}"}
+        except Exception as exc:
+            logger.exception("Unexpected error in ClipEmbeddingTask")
+            return {"status": "error", "error": f"Task failed: {exc}"}

@@ -1,8 +1,9 @@
 """MobileCLIP embedding schemas."""
 
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel, Field
 
 from ...common.schemas import BaseJobParams
@@ -27,16 +28,20 @@ class ClipEmbedding(BaseModel):
     embedding_dim: int = Field(..., description="Embedding dimensionality (512)")
     normalized: bool = Field(..., description="Whether the embedding is L2-normalized")
 
-    def to_numpy(self) -> np.ndarray:
+    def to_numpy(self) -> NDArray[np.float32]:
         """Convert embedding to numpy array.
 
         Returns:
             1D numpy array of float32
         """
-        return np.array(self.embedding, dtype=np.float32)
+        return np.asarray(self.embedding, dtype=np.float32)
 
     @classmethod
-    def from_numpy(cls, embedding: np.ndarray, normalized: bool = True) -> "ClipEmbedding":
+    def from_numpy(
+        cls,
+        embedding: NDArray[np.floating],
+        normalized: bool = True,
+    ) -> "ClipEmbedding":
         """Create ClipEmbedding from numpy array.
 
         Args:
@@ -50,8 +55,8 @@ class ClipEmbedding(BaseModel):
             raise ValueError(f"Expected 1D embedding, got shape {embedding.shape}")
 
         return cls(
-            embedding=embedding.tolist(),
-            embedding_dim=len(embedding),
+            embedding=cast(list[float], embedding.tolist()),
+            embedding_dim=embedding.shape[0],
             normalized=normalized,
         )
 
