@@ -1,4 +1,4 @@
-"""Media resize route factory."""
+"""Media thumbnail route factory."""
 
 from typing import Annotated, Callable, Protocol
 from uuid import uuid4
@@ -29,20 +29,20 @@ def create_router(
         get_current_user: Callable that returns current user (for auth)
 
     Returns:
-        Configured APIRouter with media resize endpoint
+        Configured APIRouter with media thumbnail endpoint
     """
     router = APIRouter()
 
-    @router.post("/jobs/media_resize")
-    async def create_resize_job(
-        file: Annotated[UploadFile, File(description="Media file to resize (image or video)")],
+    @router.post("/jobs/media_thumbnail")
+    async def create_thumbnail_job(
+        file: Annotated[UploadFile, File(description="Media file to thumbnail (image or video)")],
         width: Annotated[int, Form(gt=0, description="Target width in pixels")],
         height: Annotated[int, Form(gt=0, description="Target height in pixels")],
         maintain_aspect_ratio: Annotated[bool, Form(description="Maintain aspect ratio")] = False,
         priority: Annotated[int, Form(ge=0, le=10, description="Job priority (0-10)")] = 5,
         user: Annotated[UserLike | None, Depends(get_current_user)] = None,
     ):
-        """Create a media resize job.
+        """Create a media thumbnail job.
 
         Upload a media file (image or video) and specify target dimensions.
         The job will be queued for processing by a worker.
@@ -64,13 +64,13 @@ def create_router(
 
         # Generate output path
         input_path = file_info["path"]
-        output_filename = f"resized_{filename}"
+        output_filename = f"{filename}.tn"
         output_path = str(file_storage.get_output_path(job_id) / output_filename)
 
         # Create job
         job = Job(
             job_id=job_id,
-            task_type="media_resize",
+            task_type="media_thumbnail",
             params={
                 "input_paths": [input_path],
                 "output_paths": [output_path],
@@ -87,6 +87,6 @@ def create_router(
         return {"job_id": job_id, "status": "queued"}
 
     # Mark function as used (accessed via FastAPI decorator)
-    _ = create_resize_job
+    _ = create_thumbnail_job
 
     return router

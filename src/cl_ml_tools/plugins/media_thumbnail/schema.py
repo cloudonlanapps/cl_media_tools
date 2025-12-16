@@ -1,17 +1,17 @@
-"""Media resize parameters schema."""
+"""Media thumbnail parameters schema."""
 
 from ...common.schemas import BaseJobParams
 
 
-class MediaResizeParams(BaseJobParams):
-    """Parameters for image/video resize task.
+class MediaThumbnailParams(BaseJobParams):
+    """Parameters for image/video thumbnail task.
 
     Supports both image and video resizing with flexible dimensions.
     Media type is auto-detected from file content.
 
     Attributes:
         input_paths: List of absolute paths to input media (images or videos)
-        output_paths: List of absolute paths for resized output
+        output_paths: List of absolute paths for thumbnail output
         width: Target width in pixels (None = auto, default 256)
         height: Target height in pixels (None = auto, default 256)
         maintain_aspect_ratio: If True, maintain aspect ratio (default: True)

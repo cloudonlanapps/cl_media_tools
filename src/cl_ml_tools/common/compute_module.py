@@ -14,14 +14,14 @@ class ComputeModule(ABC, Generic[P]):
     All task plugins must extend this class and implement the required methods.
 
     Example:
-        class ImageResizeTask(ComputeModule):
+        class ImageThumbnailTask(ComputeModule):
 
             @property
             def task_type(self) -> str:
-                return "image_resize"
+                return "image_thumbnail"
 
             def get_schema(self) -> type[BaseJobParams]:
-                return ImageResizeParams
+                return ImageThumbnailParams
 
             async def execute(self, job, params, progress_callback=None):
                 return {

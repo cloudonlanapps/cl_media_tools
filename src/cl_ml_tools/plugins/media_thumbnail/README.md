@@ -1,12 +1,12 @@
-# Image Resize Plugin
+# Image Thumbnail Plugin
 
-Resizes images to specified dimensions.
+Thumbnails images to specified dimensions.
 
 ## Parameters
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `file` | UploadFile | Yes | - | Image file to resize |
+| `file` | UploadFile | Yes | - | Image file to thumbnail |
 | `width` | int | Yes | - | Target width in pixels |
 | `height` | int | Yes | - | Target height in pixels |
 | `maintain_aspect_ratio` | bool | No | `false` | If true, maintains aspect ratio using thumbnail mode |
@@ -15,13 +15,13 @@ Resizes images to specified dimensions.
 ## API Endpoint
 
 ```
-POST /jobs/image_resize
+POST /jobs/image_thumbnail
 ```
 
 ### Example Request
 
 ```bash
-curl -X POST "http://localhost:8000/api/jobs/image_resize" \
+curl -X POST "http://localhost:8000/api/jobs/image_thumbnail" \
   -F "file=@photo.jpg" \
   -F "width=800" \
   -F "height=600" \
@@ -43,7 +43,7 @@ On successful completion, the job's `task_output` contains:
 
 ```json
 {
-  "processed_files": ["/path/to/output/resized_photo.jpg"],
+  "processed_files": ["/path/to/output/thumbnaild_photo.jpg"],
   "dimensions": {"width": 800, "height": 600}
 }
 ```

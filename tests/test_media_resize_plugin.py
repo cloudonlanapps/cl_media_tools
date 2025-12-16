@@ -1,4 +1,4 @@
-"""Comprehensive test suite for image/video resize plugin."""
+"""Comprehensive test suite for image/video thumbnail plugin."""
 
 from pathlib import Path
 from typing import cast
@@ -6,13 +6,12 @@ from typing import cast
 import pytest
 from PIL import Image
 
-from cl_ml_tools.plugins.media_resize.schema import MediaResizeParams
-from cl_ml_tools.plugins.media_resize.task import MediaResizeTask
+from cl_ml_tools.plugins.media_thumbnail.schema import MediaThumbnailParams
+from cl_ml_tools.plugins.media_thumbnail.task import MediaThumbnailTask
 from cl_ml_tools.utils.random_media_generator.frame_generator import FrameGenerator
 from cl_ml_tools.utils.random_media_generator.image_generator import ImageGenerator
 from cl_ml_tools.utils.random_media_generator.scene_generator import SceneGenerator
 from cl_ml_tools.utils.random_media_generator.video_generator import RawScene, VideoGenerator
-
 
 # ============================================================================
 # Test Fixtures
@@ -79,9 +78,9 @@ def sample_video_file(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-def resize_task() -> MediaResizeTask:
-    """Create MediaResizeTask instance."""
-    return MediaResizeTask()
+def thumbnail_task() -> MediaThumbnailTask:
+    """Create MediaThumbnailTask instance."""
+    return MediaThumbnailTask()
 
 
 @pytest.fixture
@@ -95,12 +94,12 @@ def mock_progress_callback() -> MockProgressCallback:
 # ============================================================================
 
 
-class TestMediaResizeParams:
-    """Test MediaResizeParams schema validation."""
+class TestMediaThumbnailParams:
+    """Test MediaThumbnailParams schema validation."""
 
     def test_default_dimensions(self) -> None:
         """Test default width/height are None."""
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=["/input/image.jpg"], output_paths=["/output/image.jpg"]
         )
         assert params.width is None
@@ -109,7 +108,7 @@ class TestMediaResizeParams:
 
     def test_custom_dimensions(self) -> None:
         """Test custom width/height."""
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=["/input/image.jpg"],
             output_paths=["/output/image.jpg"],
             width=512,
@@ -120,7 +119,7 @@ class TestMediaResizeParams:
 
     def test_width_only(self) -> None:
         """Test width-only specification."""
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=["/input/image.jpg"],
             output_paths=["/output/image.jpg"],
             width=512,
@@ -130,29 +129,29 @@ class TestMediaResizeParams:
 
 
 # ============================================================================
-# Test Class 2: Image Resize Functionality
+# Test Class 2: Image Thumbnail Functionality
 # ============================================================================
 
 
-class TestImageResize:
-    """Test image resize functionality."""
+class TestImageThumbnail:
+    """Test image thumbnail functionality."""
 
     @pytest.mark.asyncio
-    async def test_image_resize_default_dimensions(
+    async def test_image_thumbnail_default_dimensions(
         self,
         sample_image_file: str,
         tmp_path: Path,
-        resize_task: MediaResizeTask,
+        thumbnail_task: MediaThumbnailTask,
     ) -> None:
-        """Test image resize with default 256x256."""
+        """Test image thumbnail with default 256x256."""
         output_path = str(tmp_path / "output.jpg")
 
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=[sample_image_file],
             output_paths=[output_path],
         )
 
-        result = await resize_task.execute(job=cast(dict, {}), params=params)
+        result = await thumbnail_task.execute(job=cast(dict, {}), params=params)
 
         assert result["status"] == "ok"
         assert Path(output_path).exists()
@@ -162,22 +161,22 @@ class TestImageResize:
             assert max(img.size) <= 256
 
     @pytest.mark.asyncio
-    async def test_image_resize_width_only(
+    async def test_image_thumbnail_width_only(
         self,
         sample_image_file: str,
         tmp_path: Path,
-        resize_task: MediaResizeTask,
+        thumbnail_task: MediaThumbnailTask,
     ) -> None:
-        """Test image resize with width only (maintain aspect ratio)."""
+        """Test image thumbnail with width only (maintain aspect ratio)."""
         output_path = str(tmp_path / "output.jpg")
 
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=[sample_image_file],
             output_paths=[output_path],
             width=512,
         )
 
-        result = await resize_task.execute(job=cast(dict, {}), params=params)
+        result = await thumbnail_task.execute(job=cast(dict, {}), params=params)
 
         assert result["status"] == "ok"
         task_output = result["task_output"]
@@ -188,23 +187,23 @@ class TestImageResize:
             assert img.size[0] <= 512  # Width should be <= 512
 
     @pytest.mark.asyncio
-    async def test_image_resize_both_dimensions(
+    async def test_image_thumbnail_both_dimensions(
         self,
         sample_image_file: str,
         tmp_path: Path,
-        resize_task: MediaResizeTask,
+        thumbnail_task: MediaThumbnailTask,
     ) -> None:
-        """Test image resize with both width and height (fit in box)."""
+        """Test image thumbnail with both width and height (fit in box)."""
         output_path = str(tmp_path / "output.jpg")
 
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=[sample_image_file],
             output_paths=[output_path],
             width=640,
             height=480,
         )
 
-        result = await resize_task.execute(job=cast(dict, {}), params=params)
+        result = await thumbnail_task.execute(job=cast(dict, {}), params=params)
 
         assert result["status"] == "ok"
 
@@ -215,29 +214,29 @@ class TestImageResize:
 
 
 # ============================================================================
-# Test Class 3: Video Resize Functionality
+# Test Class 3: Video Thumbnail Functionality
 # ============================================================================
 
 
-class TestVideoResize:
-    """Test video resize functionality."""
+class TestVideoThumbnail:
+    """Test video thumbnail functionality."""
 
     @pytest.mark.asyncio
-    async def test_video_resize_default_dimensions(
+    async def test_video_thumbnail_default_dimensions(
         self,
         sample_video_file: str,
         tmp_path: Path,
-        resize_task: MediaResizeTask,
+        thumbnail_task: MediaThumbnailTask,
     ) -> None:
-        """Test video resize (thumbnail) with default 256x256."""
+        """Test video thumbnail (thumbnail) with default 256x256."""
         output_path = str(tmp_path / "thumbnail.jpg")
 
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=[sample_video_file],
             output_paths=[output_path],
         )
 
-        result = await resize_task.execute(job=cast(dict, {}), params=params)
+        result = await thumbnail_task.execute(job=cast(dict, {}), params=params)
 
         assert result["status"] == "ok"
         task_output = result["task_output"]
@@ -250,22 +249,22 @@ class TestVideoResize:
             assert img.size[1] > 0
 
     @pytest.mark.asyncio
-    async def test_video_resize_custom_width(
+    async def test_video_thumbnail_custom_width(
         self,
         sample_video_file: str,
         tmp_path: Path,
-        resize_task: MediaResizeTask,
+        thumbnail_task: MediaThumbnailTask,
     ) -> None:
-        """Test video resize with custom width."""
+        """Test video thumbnail with custom width."""
         output_path = str(tmp_path / "thumbnail.jpg")
 
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=[sample_video_file],
             output_paths=[output_path],
             width=512,
         )
 
-        result = await resize_task.execute(job=cast(dict, {}), params=params)
+        result = await thumbnail_task.execute(job=cast(dict, {}), params=params)
 
         assert result["status"] == "ok"
         assert Path(output_path).exists()
@@ -285,20 +284,20 @@ class TestMixedMedia:
         sample_image_file: str,
         sample_video_file: str,
         tmp_path: Path,
-        resize_task: MediaResizeTask,
+        thumbnail_task: MediaThumbnailTask,
     ) -> None:
         """Test processing both images and videos in one batch."""
         output_image = str(tmp_path / "output_image.jpg")
         output_video = str(tmp_path / "output_video.jpg")
 
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=[sample_image_file, sample_video_file],
             output_paths=[output_image, output_video],
             width=256,
             height=256,
         )
 
-        result = await resize_task.execute(job=cast(dict, {}), params=params)
+        result = await thumbnail_task.execute(job=cast(dict, {}), params=params)
 
         assert result["status"] == "ok"
         task_output = result["task_output"]
@@ -320,15 +319,15 @@ class TestErrorHandling:
     async def test_file_not_found(
         self,
         tmp_path: Path,
-        resize_task: MediaResizeTask,
+        thumbnail_task: MediaThumbnailTask,
     ) -> None:
         """Test error when input file doesn't exist."""
-        params = MediaResizeParams(
+        params = MediaThumbnailParams(
             input_paths=["/nonexistent/file.jpg"],
             output_paths=[str(tmp_path / "output.jpg")],
         )
 
-        result = await resize_task.execute(job=cast(dict, {}), params=params)
+        result = await thumbnail_task.execute(job=cast(dict, {}), params=params)
 
         assert result["status"] == "error"
         assert "not found" in result["error"].lower()

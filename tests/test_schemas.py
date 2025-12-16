@@ -50,11 +50,11 @@ class TestJob:
         """Test required fields."""
         job = Job(
             job_id="test-123",
-            task_type="image_resize",
+            task_type="image_thumbnail",
             params={"width": 100, "height": 100},
         )
         assert job.job_id == "test-123"
-        assert job.task_type == "image_resize"
+        assert job.task_type == "image_thumbnail"
         assert job.status == "queued"
         assert job.progress == 0
 

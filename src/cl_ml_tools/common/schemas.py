@@ -74,7 +74,7 @@ class Job(BaseModel):
     """
 
     job_id: str = Field(..., description="Unique job identifier (UUID)")
-    task_type: str = Field(..., description="Type of task (e.g., 'image_resize')")
+    task_type: str = Field(..., description="Type of task (e.g., 'image_thumbnail')")
 
     # Params are stored as raw data, validated separately via BaseJobParams
     params: Mapping[str, object] = Field(..., description="Task parameters as dictionary")

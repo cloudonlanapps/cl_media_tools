@@ -1,4 +1,4 @@
-"""Media resize task implementation."""
+"""Media thumbnail task implementation."""
 
 from io import BytesIO
 from pathlib import Path
@@ -7,28 +7,28 @@ from typing import Callable, override
 from ...common.compute_module import ComputeModule
 from ...common.schemas import BaseJobParams, Job, TaskResult
 from ...utils.media_types import MediaType, determine_mime
-from .algo.image_resize import image_resize
-from .algo.video_resize import video_resize
-from .schema import MediaResizeParams
+from .algo.image_thumbnail import image_thumbnail
+from .algo.video_thumbnail import video_thumbnail
+from .schema import MediaThumbnailParams
 
 
-class MediaResizeTask(ComputeModule[MediaResizeParams]):
+class MediaThumbnailTask(ComputeModule[MediaThumbnailParams]):
     """Compute module for resizing images and videos."""
 
     @property
     @override
     def task_type(self) -> str:
-        return "media_resize"
+        return "media_thumbnail"
 
     @override
     def get_schema(self) -> type[BaseJobParams]:
-        return MediaResizeParams
+        return MediaThumbnailParams
 
     @override
     async def execute(
         self,
         job: Job,
-        params: MediaResizeParams,
+        params: MediaThumbnailParams,
         progress_callback: Callable[[int], None] | None = None,
     ) -> TaskResult:
         try:
@@ -48,9 +48,9 @@ class MediaResizeTask(ComputeModule[MediaResizeParams]):
                     bytes_io = BytesIO(f.read())
                     media_type = determine_mime(bytes_io)
 
-                # Route to appropriate resize function
+                # Route to appropriate thumbnail function
                 if media_type == MediaType.IMAGE:
-                    output = image_resize(
+                    output = image_thumbnail(
                         input_path=input_path,
                         output_path=output_path,
                         width=params.width,
@@ -60,7 +60,7 @@ class MediaResizeTask(ComputeModule[MediaResizeParams]):
                     media_types.append("image")
 
                 elif media_type == MediaType.VIDEO:
-                    output = video_resize(
+                    output = video_thumbnail(
                         input_path=input_path,
                         output_path=output_path,
                         width=params.width,

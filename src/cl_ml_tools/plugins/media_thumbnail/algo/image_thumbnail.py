@@ -1,11 +1,11 @@
-"""Pure image resize computation logic (single file)."""
+"""Pure image thumbnail computation logic (single file)."""
 
 from pathlib import Path
 
 from PIL import Image
 
 
-def image_resize(
+def image_thumbnail(
     *,
     input_path: str | Path,
     output_path: str | Path,
@@ -14,15 +14,15 @@ def image_resize(
     maintain_aspect_ratio: bool = True,
 ) -> str:
     """
-    Resize a single image and write output.
+    Thumbnail a single image and write output.
 
     Framework-agnostic, single-responsibility function.
 
     Args:
         input_path: Path to input image
         output_path: Path to output image
-        width: Target width
-        height: Target height
+        w: Target w
+        h: Target h
         maintain_aspect_ratio: Preserve aspect ratio if True
 
     Returns:
@@ -35,28 +35,21 @@ def image_resize(
     input_path = Path(input_path)
     output_path = Path(output_path)
 
-    # Default to 256x256 if neither specified
-    if width is None and height is None:
-        width = 256
-        height = 256
-    elif width is None:
-        # Only height specified, use it for both (PIL thumbnail maintains aspect)
-        width = height
-    elif height is None:
-        # Only width specified, use it for both (PIL thumbnail maintains aspect)
-        height = width
-    # If both specified, use as-is (PIL thumbnail will fit within box)
+    # Default to 256 if both are None
+    size: int = width or height or 256
+    w: int = width if width is not None else size
+    h: int = height if height is not None else size
 
     with Image.open(input_path) as img:
         if maintain_aspect_ratio:
-            img.thumbnail((width, height), Image.Resampling.LANCZOS)
-            resized = img
+            img.thumbnail((w, h), Image.Resampling.LANCZOS)
+            thumbnail = img
         else:
-            resized = img.resize(
-                (width, height),
+            thumbnail = img.resize(
+                (w, h),
                 Image.Resampling.LANCZOS,
             )
 
-        resized.save(output_path)
+        thumbnail.save(output_path)
 
     return str(output_path)

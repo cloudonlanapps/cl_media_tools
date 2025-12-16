@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 
-def video_resize(
+def video_thumbnail(
     *,
     input_path: str | Path,
     output_path: str | Path,
@@ -12,7 +12,7 @@ def video_resize(
     height: int | None = None,
 ) -> str:
     """
-    Resize a video using FFmpeg with aspect ratio maintenance.
+    Thumbnail a video using FFmpeg with aspect ratio maintenance.
 
     Creates a 4x4 tiled thumbnail grid from keyframes.
 
@@ -43,7 +43,9 @@ def video_resize(
     # Build scale filter based on provided dimensions
     if width is not None and height is not None:
         # Both specified: fit within box, maintain aspect ratio
-        scale_filter = f"scale='min(iw,{width})':'min(ih,{height})':force_original_aspect_ratio=decrease"
+        scale_filter = (
+            f"scale='min(iw,{width})':'min(ih,{height})':force_original_aspect_ratio=decrease"
+        )
     elif width is not None:
         # Only width specified: maintain aspect ratio
         scale_filter = f"scale={width}:-1"
