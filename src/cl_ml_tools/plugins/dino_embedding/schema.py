@@ -1,19 +1,14 @@
 """DINOv2 embedding parameters and output schemas."""
 
 import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel, Field
 
 from ...common.schemas import BaseJobParams
 
 
 class DinoEmbeddingParams(BaseJobParams):
-    """Parameters for DINOv2 embedding task.
-
-    Attributes:
-        input_paths: List of absolute paths to input images
-        output_paths: Not used for embedding (embeddings returned in task_output)
-        normalize: Whether to L2-normalize the embeddings (default: True)
-    """
+    """Parameters for DINOv2 embedding task."""
 
     normalize: bool = Field(
         default=True,
@@ -27,27 +22,18 @@ class DinoEmbedding(BaseModel):
     embedding: list[float] = Field(..., description="DINOv2 CLS token embedding (384D)")
     embedding_dim: int = Field(..., description="Embedding dimensionality (384)")
 
-    def to_numpy(self) -> np.ndarray:
-        """Convert embedding list to numpy array.
-
-        Returns:
-            Numpy array of embeddings
-        """
-        return np.array(self.embedding, dtype=np.float32)
+    def to_numpy(self) -> NDArray[np.float32]:
+        """Convert embedding list to numpy array."""
+        return np.asarray(self.embedding, dtype=np.float32)
 
     @classmethod
-    def from_numpy(cls, embedding: np.ndarray) -> "DinoEmbedding":
-        """Create DinoEmbedding from numpy array.
-
-        Args:
-            embedding: Numpy array of embeddings
-
-        Returns:
-            DinoEmbedding instance
-        """
+    def from_numpy(cls, embedding: NDArray[np.float32]) -> "DinoEmbedding":
+        """Create DinoEmbedding from numpy array."""
+        flat: NDArray[np.float32] = embedding.reshape(-1).astype(np.float32)
+        values: list[float] = list(map(float, flat))
         return cls(
-            embedding=embedding.tolist(),
-            embedding_dim=len(embedding),
+            embedding=values,
+            embedding_dim=flat.shape[0],
         )
 
 

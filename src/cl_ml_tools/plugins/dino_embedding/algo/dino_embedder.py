@@ -7,9 +7,11 @@ Output: 384-dimensional CLS token embedding
 
 import logging
 from pathlib import Path
+from typing import Final, cast
 
 import numpy as np
 import onnxruntime as ort
+from numpy.typing import NDArray
 from PIL import Image
 
 from ....utils.model_downloader import get_model_downloader
@@ -17,29 +19,29 @@ from ....utils.model_downloader import get_model_downloader
 logger = logging.getLogger(__name__)
 
 # Model configuration
-MODEL_URL = "https://huggingface.co/RoundtTble/dinov2_vits14_onnx/resolve/main/model.onnx"
-MODEL_FILENAME = "dinov2_vits14.onnx"
-MODEL_SHA256 = None  # TODO: Add SHA256 hash for verification
+MODEL_URL: Final[str] = (
+    "https://huggingface.co/RoundtTble/dinov2_vits14_onnx/resolve/main/model.onnx"
+)
+MODEL_FILENAME: Final[str] = "dinov2_vits14.onnx"
+MODEL_SHA256: Final[str | None] = None  # TODO: Add SHA256 hash for verification
 
 # Input configuration
-INPUT_SIZE = (224, 224)  # (height, width)
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+INPUT_SIZE: Final[tuple[int, int]] = (224, 224)  # (height, width)
+IMAGENET_MEAN: Final[NDArray[np.float32]] = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+IMAGENET_STD: Final[NDArray[np.float32]] = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 class DinoEmbedder:
     """ONNX-based DINOv2 embedding generator."""
 
-    def __init__(self, model_path: str | Path | None = None):
-        """Initialize DINOv2 embedder.
+    session: ort.InferenceSession
+    input_name: str
+    output_name: str
 
-        Args:
-            model_path: Path to ONNX model file. If None, downloads from Hugging Face.
-        """
+    def __init__(self, model_path: str | Path | None = None) -> None:
         if model_path is None:
-            # Download model using model_downloader
             downloader = get_model_downloader()
-            logger.info(f"Downloading DINOv2 model from {MODEL_URL}")
+            logger.info("Downloading DINOv2 model from %s", MODEL_URL)
             model_path = downloader.download(
                 url=MODEL_URL,
                 filename=MODEL_FILENAME,
@@ -50,9 +52,8 @@ class DinoEmbedder:
             if not model_path.exists():
                 raise FileNotFoundError(f"Model file not found: {model_path}")
 
-        logger.info(f"Loading DINOv2 model from {model_path}")
+        logger.info("Loading DINOv2 model from %s", model_path)
 
-        # Create ONNX Runtime session
         sess_options = ort.SessionOptions()
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
@@ -62,102 +63,66 @@ class DinoEmbedder:
             providers=["CPUExecutionProvider"],
         )
 
-        # Get model input/output names
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
 
         logger.info(
-            f"DINOv2 model loaded. Input: {self.input_name}, Output: {self.output_name}"
+            "DINOv2 model loaded. Input: %s, Output: %s",
+            self.input_name,
+            self.output_name,
         )
 
-    def preprocess(self, image: Image.Image) -> np.ndarray:
-        """Preprocess image for DINOv2 inference.
-
-        Args:
-            image: PIL Image
-
-        Returns:
-            Preprocessed array in NCHW format with ImageNet normalization
-        """
-        # Convert to RGB if needed
+    def preprocess(self, image: Image.Image) -> NDArray[np.float32]:
         if image.mode != "RGB":
             image = image.convert("RGB")
 
-        # Resize to model input size
         image_resized = image.resize((INPUT_SIZE[1], INPUT_SIZE[0]), Image.Resampling.BILINEAR)
 
-        # Convert to numpy array and normalize to [0, 1]
-        img_array = np.array(image_resized, dtype=np.float32) / 255.0
+        img_array: NDArray[np.float32] = np.asarray(image_resized, dtype=np.float32) / 255.0
 
-        # Apply ImageNet normalization (per-channel)
         img_array = (img_array - IMAGENET_MEAN.reshape(1, 1, 3)) / IMAGENET_STD.reshape(1, 1, 3)
 
-        # Convert HWC to CHW (channels first)
         img_array = np.transpose(img_array, (2, 0, 1))
-
-        # Add batch dimension: CHW -> NCHW
         img_array = np.expand_dims(img_array, axis=0)
 
         return img_array
 
-    def postprocess(self, embedding: np.ndarray, normalize: bool = True) -> np.ndarray:
-        """Post-process embedding (L2 normalization, CLS token extraction).
-
-        Args:
-            embedding: Raw embedding from model
-            normalize: Whether to L2-normalize the embedding
-
-        Returns:
-            Processed embedding (CLS token, optionally normalized)
-        """
+    def postprocess(
+        self, embedding: NDArray[np.float32], normalize: bool = True
+    ) -> NDArray[np.float32]:
         # Remove batch dimension if present
         if embedding.ndim > 1:
-            embedding = embedding.squeeze()
+            embedding = np.squeeze(embedding)
 
-        # For DINOv2, the output is typically the CLS token directly (384D for vits14)
-        # If model outputs sequence, take first token (CLS)
+        # If sequence output, take CLS token
         if embedding.ndim > 1:
-            embedding = embedding[0]  # Take CLS token
+            embedding = cast(NDArray[np.float32], embedding[0])
 
         if normalize:
-            # L2 normalization
-            norm = np.linalg.norm(embedding)
-            if norm > 0:
+            norm: float = float(np.linalg.norm(embedding))
+            if norm > 0.0:
                 embedding = embedding / norm
 
         return embedding
 
-    def embed(
-        self, image_path: str | Path, normalize: bool = True
-    ) -> np.ndarray:
-        """Generate DINOv2 embedding for an image.
-
-        Args:
-            image_path: Path to input image
-            normalize: Whether to L2-normalize the embedding
-
-        Returns:
-            1D numpy array (384D for DINOv2 ViT-S/14)
-        """
+    def embed(self, image_path: str | Path, normalize: bool = True) -> NDArray[np.float32]:
         image_path = Path(image_path)
-
         if not image_path.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        # Load image
         image = Image.open(image_path)
 
-        # Preprocess
-        input_array = self.preprocess(image)
+        input_array: NDArray[np.float32] = self.preprocess(image)
 
-        # Run inference
-        embedding = self.session.run([self.output_name], {self.input_name: input_array})[0]
+        outputs = self.session.run([self.output_name], {self.input_name: input_array})
+        raw_embedding = cast(NDArray[np.float32], outputs[0])
 
-        # Post-process (CLS token extraction and L2 normalization)
-        embedding = self.postprocess(embedding, normalize=normalize)
+        embedding: NDArray[np.float32] = self.postprocess(raw_embedding, normalize=normalize)
 
         logger.info(
-            f"Generated DINOv2 embedding for {image_path}: dim={len(embedding)}"
+            "Generated DINOv2 embedding for %s: dim=%d",
+            image_path,
+            int(embedding.shape[0]),
         )
 
         return embedding

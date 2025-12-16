@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams]):
     """Compute module for generating DINOv2 embeddings using ONNX model."""
 
-    def __init__(self):
-        """Initialize DINOv2 embedding task."""
+    def __init__(self) -> None:
         super().__init__()
         self._embedder: DinoEmbedder | None = None
 
@@ -29,15 +28,13 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams]):
         return DinoEmbeddingParams
 
     def _get_embedder(self) -> DinoEmbedder:
-        """Get or create DINOv2 embedder instance (lazy loading)."""
         if self._embedder is None:
             try:
                 self._embedder = DinoEmbedder()
                 logger.info("DINOv2 embedder initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize DINOv2 embedder: {e}")
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to initialize DINOv2 embedder: %s", exc)
                 raise
-
         return self._embedder
 
     @override
@@ -47,55 +44,38 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams]):
         params: DinoEmbeddingParams,
         progress_callback: Callable[[int], None] | None = None,
     ) -> TaskResult:
-        """Generate DINOv2 embeddings for input images.
-
-        Args:
-            job: Job instance
-            params: DinoEmbeddingParams with input_paths and normalization settings
-            progress_callback: Optional callback for progress updates (0-100)
-
-        Returns:
-            TaskResult with status and embeddings for each image
-        """
         try:
-            # Initialize embedder
             try:
                 embedder = self._get_embedder()
-            except Exception as e:
-                logger.error(f"DINOv2 embedder initialization failed: {e}")
+            except Exception as exc:  # noqa: BLE001
                 return {
                     "status": "error",
                     "error": (
-                        f"Failed to initialize DINOv2 embedder: {e}. "
+                        f"Failed to initialize DINOv2 embedder: {exc}. "
                         "Ensure ONNX Runtime is installed and the model can be downloaded."
                     ),
                 }
 
-            file_results: list[dict] = []
-            total_files = len(params.input_paths)
+            file_results: list[dict[str, object]] = []
+            total_files: int = len(params.input_paths)
 
             for index, input_path in enumerate(params.input_paths):
                 try:
-                    # Generate embedding
                     embedding_array = embedder.embed(
                         image_path=input_path,
                         normalize=params.normalize,
                     )
 
-                    # Create DinoEmbedding object
-                    dino_embedding = DinoEmbedding.from_numpy(embedding=embedding_array)
+                    dino_embedding = DinoEmbedding.from_numpy(embedding_array)
 
-                    # Create result
                     result = DinoEmbeddingResult(
                         file_path=input_path,
                         embedding=dino_embedding,
                         status="success",
                     )
-
                     file_results.append(result.model_dump())
 
                 except FileNotFoundError:
-                    logger.error(f"File not found: {input_path}")
                     result = DinoEmbeddingResult(
                         file_path=input_path,
                         embedding=None,
@@ -104,37 +84,40 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams]):
                     )
                     file_results.append(result.model_dump())
 
-                except Exception as e:
-                    logger.error(f"Failed to generate DINOv2 embedding for {input_path}: {e}")
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "Failed to generate DINOv2 embedding for %s: %s",
+                        input_path,
+                        exc,
+                    )
                     result = DinoEmbeddingResult(
                         file_path=input_path,
                         embedding=None,
                         status="error",
-                        error=str(e),
+                        error=str(exc),
                     )
                     file_results.append(result.model_dump())
 
-                # Report progress
                 if progress_callback:
-                    progress = int((index + 1) / total_files * 100)
+                    progress: int = int((index + 1) / total_files * 100)
                     progress_callback(progress)
 
-            # Determine overall status
-            all_success = all(r["status"] == "success" for r in file_results)
-            any_success = any(r["status"] == "success" for r in file_results)
+            all_success: bool = all(r.get("status") == "success" for r in file_results)
+            any_success: bool = any(r.get("status") == "success" for r in file_results)
 
             if all_success:
-                status = "ok"
+                status: str = "ok"
             elif any_success:
-                status = "ok"  # Partial success
+                status = "ok"
+                success_count: int = sum(1 for r in file_results if r.get("status") == "success")
                 logger.warning(
-                    f"Partial success: {sum(1 for r in file_results if r['status'] == 'success')}"
-                    f"/{total_files} files processed successfully"
+                    "Partial success: %d/%d files processed successfully",
+                    success_count,
+                    total_files,
                 )
             else:
-                status = "error"
                 return {
-                    "status": status,
+                    "status": "error",
                     "error": "Failed to generate embeddings for all files",
                     "task_output": {
                         "files": file_results,
@@ -151,6 +134,6 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams]):
                 },
             }
 
-        except Exception as e:
-            logger.exception(f"Unexpected error in DinoEmbeddingTask: {e}")
-            return {"status": "error", "error": f"Task failed: {str(e)}"}
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Unexpected error in DinoEmbeddingTask: %s", exc)
+            return {"status": "error", "error": f"Task failed: {exc}"}
