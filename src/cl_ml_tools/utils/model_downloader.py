@@ -11,7 +11,7 @@ the original model licenses.
 import hashlib
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import cast
 
 import httpx
 
@@ -24,7 +24,7 @@ class ModelDownloader:
     Models are cached in ~/.cache/cl_ml_tools/models/ by default.
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(self, cache_dir: Path | None = None):
         """Initialize the model downloader.
 
         Args:
@@ -33,14 +33,14 @@ class ModelDownloader:
         if cache_dir is None:
             cache_dir = Path.home() / ".cache" / "cl_ml_tools" / "models"
 
-        self.cache_dir = cache_dir
+        self.cache_dir: Path = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def download(
         self,
         url: str,
         filename: str,
-        expected_sha256: Optional[str] = None,
+        expected_sha256: str | None = None,
         force_redownload: bool = False,
     ) -> Path:
         """Download a model file and cache it locally.
@@ -74,7 +74,7 @@ class ModelDownloader:
             else:
                 logger.warning(
                     f"Cached model hash mismatch. Expected {expected_sha256}, "
-                    f"got {actual_hash}. Re-downloading..."
+                    + f"got {actual_hash}. Re-downloading..."
                 )
 
         # Download the model
@@ -82,16 +82,17 @@ class ModelDownloader:
 
         try:
             with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
-                response.raise_for_status()
+                _ = response.raise_for_status()
 
                 # Get total size if available
-                total_size = int(response.headers.get("content-length", 0))
+                size_header = cast(str | None, response.headers.get("content-length"))
+                total_size: int = int(size_header) if size_header is not None else 0
 
                 # Download with progress logging
                 with open(model_path, "wb") as f:
                     downloaded = 0
                     for chunk in response.iter_bytes(chunk_size=8192):
-                        f.write(chunk)
+                        _ = f.write(chunk)
                         downloaded += len(chunk)
 
                         # Log progress every 10MB
@@ -108,7 +109,7 @@ class ModelDownloader:
                     model_path.unlink()  # Delete corrupted file
                     raise ValueError(
                         f"Downloaded model hash mismatch. Expected {expected_sha256}, "
-                        f"got {actual_hash}. File deleted."
+                        + f"got {actual_hash}. File deleted."
                     )
                 logger.info("Model hash verified successfully")
 
@@ -136,7 +137,7 @@ class ModelDownloader:
 
         return sha256_hash.hexdigest()
 
-    def get_cached_model_path(self, filename: str) -> Optional[Path]:
+    def get_cached_model_path(self, filename: str) -> Path | None:
         """Get path to a cached model if it exists.
 
         Args:
@@ -157,7 +158,7 @@ class ModelDownloader:
 
 
 # Singleton instance for shared use across plugins
-_default_downloader: Optional[ModelDownloader] = None
+_default_downloader: ModelDownloader | None = None
 
 
 def get_model_downloader() -> ModelDownloader:
