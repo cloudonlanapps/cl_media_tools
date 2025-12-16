@@ -28,6 +28,10 @@ dependencies = [
     "python-magic>=0.4.27",
     "pillow-heif>=1.1.1",
     "m3u8>=6.0.0",
+    "numpy>=1.24.0",
+    "onnx>=1.15.0",
+    "onnxruntime>=1.16.0",
+    "httpx>=0.24",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +72,30 @@ python_files = ["test_*.py"]
 asyncio_mode = "auto"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
+addopts = "--cov=src/cl_ml_tools --cov-report=html --cov-report=term-missing --cov-fail-under=85"
+
+[tool.coverage.run]
+source = ["src/cl_ml_tools"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+precision = 2
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
 ]
 
 [tool.ruff]
