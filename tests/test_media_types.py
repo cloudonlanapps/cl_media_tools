@@ -1,4 +1,5 @@
 """Comprehensive test suite for media types utility."""
+
 from io import BytesIO
 
 from cl_ml_tools.utils.media_types import (
@@ -198,12 +199,12 @@ class TestDetermineMime:
     def test_determine_mime_seek_position(self) -> None:
         """Test that BytesIO position is reset after MIME detection."""
         bytes_io = BytesIO(b"test content")
-        bytes_io.seek(5)  # Move position
+        _ = bytes_io.seek(5)  # Move position
 
         _ = determine_mime(bytes_io, file_type="text/plain")
 
         # Position should still be seekable
-        bytes_io.seek(0)
+        _ = bytes_io.seek(0)
         assert bytes_io.read() == b"test content"
 
     def test_determine_mime_empty_bytes(self) -> None:
