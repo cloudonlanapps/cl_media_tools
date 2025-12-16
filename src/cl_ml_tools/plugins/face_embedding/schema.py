@@ -1,19 +1,18 @@
 """Face embedding parameters and output schemas."""
 
+from __future__ import annotations
+
 import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel, Field
 
 from ...common.schemas import BaseJobParams
 
+FloatArray = NDArray[np.float32]
+
 
 class FaceEmbeddingParams(BaseJobParams):
-    """Parameters for face embedding task.
-
-    Attributes:
-        input_paths: List of absolute paths to face images (cropped faces)
-        output_paths: Not used for face embedding (embeddings returned in task_output)
-        normalize: Whether to L2-normalize the embeddings (default: True)
-    """
+    """Parameters for face embedding task."""
 
     normalize: bool = Field(
         default=True,
@@ -33,30 +32,19 @@ class FaceEmbedding(BaseModel):
         description="Quality score for the face (based on blur/sharpness)",
     )
 
-    def to_numpy(self) -> np.ndarray:
-        """Convert embedding list to numpy array.
-
-        Returns:
-            Numpy array of embeddings
-        """
-        return np.array(self.embedding, dtype=np.float32)
+    def to_numpy(self) -> FloatArray:
+        return np.asarray(self.embedding, dtype=np.float32)
 
     @classmethod
     def from_numpy(
-        cls, embedding: np.ndarray, quality_score: float | None = None
-    ) -> "FaceEmbedding":
-        """Create FaceEmbedding from numpy array.
-
-        Args:
-            embedding: Numpy array of embeddings
-            quality_score: Optional quality score
-
-        Returns:
-            FaceEmbedding instance
-        """
+        cls,
+        embedding: FloatArray,
+        quality_score: float | None = None,
+    ) -> FaceEmbedding:
+        embedding_list: list[float] = [float(x) for x in embedding.reshape(-1)]
         return cls(
-            embedding=embedding.tolist(),
-            embedding_dim=len(embedding),
+            embedding=embedding_list,
+            embedding_dim=len(embedding_list),
             quality_score=quality_score,
         )
 
@@ -66,7 +54,11 @@ class FaceEmbeddingResult(BaseModel):
 
     file_path: str = Field(..., description="Path to the input face image")
     embedding: FaceEmbedding | None = Field(
-        default=None, description="Face embedding (None if extraction failed)"
+        default=None,
+        description="Face embedding (None if extraction failed)",
     )
     status: str = Field(..., description="Status: 'success' or 'error'")
-    error: str | None = Field(default=None, description="Error message if status is 'error'")
+    error: str | None = Field(
+        default=None,
+        description="Error message if status is 'error'",
+    )

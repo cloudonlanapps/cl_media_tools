@@ -5,11 +5,15 @@ Input: 112x112 RGB face images
 Output: 512-dimensional embedding
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import onnxruntime as ort
+from numpy.typing import NDArray
 from PIL import Image
 
 from ....utils.model_downloader import get_model_downloader
@@ -22,20 +26,18 @@ MODEL_FILENAME = "arcface_face_embedding.onnx"
 MODEL_SHA256 = None  # TODO: Add SHA256 hash for verification
 
 # Expected input shape for ArcFace
-INPUT_SIZE = (112, 112)  # (height, width)
+INPUT_SIZE: tuple[int, int] = (112, 112)  # (height, width)
 
 
 class FaceEmbedder:
     """ONNX-based face embedding generator using ArcFace model."""
 
-    def __init__(self, model_path: str | Path | None = None):
-        """Initialize face embedder.
+    session: ort.InferenceSession
+    input_name: str
+    output_name: str
 
-        Args:
-            model_path: Path to ONNX model file. If None, downloads from Hugging Face.
-        """
+    def __init__(self, model_path: str | Path | None = None) -> None:
         if model_path is None:
-            # Download model using model_downloader
             downloader = get_model_downloader()
             logger.info(f"Downloading face embedding model from {MODEL_URL}")
             model_path = downloader.download(
@@ -50,7 +52,6 @@ class FaceEmbedder:
 
         logger.info(f"Loading face embedding model from {model_path}")
 
-        # Create ONNX Runtime session
         sess_options = ort.SessionOptions()
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
@@ -60,140 +61,95 @@ class FaceEmbedder:
             providers=["CPUExecutionProvider"],
         )
 
-        # Get model input/output names and shapes
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
 
-        logger.info(
-            f"Model loaded. Input: {self.input_name}, Output: {self.output_name}"
-        )
+        logger.info(f"Model loaded. Input: {self.input_name}, Output: {self.output_name}")
 
-    def preprocess(self, image: Image.Image) -> np.ndarray:
-        """Preprocess face image for embedding extraction.
-
-        Args:
-            image: PIL Image of a cropped face
-
-        Returns:
-            Preprocessed array in NCHW format, float32, range [0, 1] or normalized
-        """
-        # Convert to RGB if needed
+    def preprocess(self, image: Image.Image) -> NDArray[np.float32]:
         if image.mode != "RGB":
             image = image.convert("RGB")
 
-        # Resize to model input size
-        image_resized = image.resize((INPUT_SIZE[1], INPUT_SIZE[0]), Image.Resampling.BILINEAR)
+        image_resized = image.resize(
+            (INPUT_SIZE[1], INPUT_SIZE[0]),
+            Image.Resampling.BILINEAR,
+        )
 
-        # Convert to numpy array and normalize to [0, 1]
-        img_array = np.array(image_resized, dtype=np.float32) / 255.0
+        img_array: NDArray[np.float32] = np.asarray(image_resized, dtype=np.float32) / 255.0
 
-        # Convert HWC to CHW (channels first)
         img_array = np.transpose(img_array, (2, 0, 1))
-
-        # Add batch dimension: CHW -> NCHW
         img_array = np.expand_dims(img_array, axis=0)
 
         return img_array
 
-    def postprocess(self, embedding: np.ndarray, normalize: bool = True) -> np.ndarray:
-        """Post-process embedding (L2 normalization).
-
-        Args:
-            embedding: Raw embedding from model
-            normalize: Whether to L2-normalize the embedding
-
-        Returns:
-            Processed embedding (optionally normalized)
-        """
-        # Remove batch dimension if present
+    def postprocess(
+        self, embedding: NDArray[np.float32], normalize: bool = True
+    ) -> NDArray[np.float32]:
         if embedding.ndim > 1:
-            embedding = embedding.squeeze()
+            embedding = embedding.squeeze(axis=0)
 
         if normalize:
-            # L2 normalization
-            norm = np.linalg.norm(embedding)
-            if norm > 0:
+            norm = float(np.linalg.norm(embedding))
+            if norm > 0.0:
                 embedding = embedding / norm
 
         return embedding
 
     def compute_quality_score(self, image: Image.Image) -> float:
-        """Compute quality score for a face image based on sharpness/blur.
-
-        Args:
-            image: PIL Image of a face
-
-        Returns:
-            Quality score in [0.0, 1.0] range
-        """
-        # Simple Laplacian variance for blur detection
-        # Higher variance = sharper image = better quality
         img_gray = image.convert("L")
-        img_array = np.array(img_gray, dtype=np.float32)
+        img_array: NDArray[np.float32] = np.asarray(img_gray, dtype=np.float32)
 
-        # Compute Laplacian
-        laplacian = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
-        from scipy import signal
+        kernel: NDArray[np.float32] = np.array(
+            [[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]],
+            dtype=np.float32,
+        )
 
-        lap_img = signal.convolve2d(img_array, laplacian, mode="same", boundary="symm")
+        padded = np.pad(img_array, 1, mode="reflect")
+        lap_img = np.empty_like(img_array)
 
-        # Compute variance
-        variance = np.var(lap_img)
+        for y in range(img_array.shape[0]):
+            for x in range(img_array.shape[1]):
+                region = padded[y : y + 3, x : x + 3]
+                lap_img[y, x] = float(np.sum(region * kernel))
 
-        # Normalize to [0, 1] range (empirical threshold)
-        # Variance > 100 is considered sharp
+        variance = float(np.var(lap_img))
         quality = min(variance / 100.0, 1.0)
 
-        return float(quality)
+        return quality
 
     def embed(
-        self, image_path: str | Path, normalize: bool = True, compute_quality: bool = True
-    ) -> tuple[np.ndarray, float | None]:
-        """Generate embedding for a face image.
-
-        Args:
-            image_path: Path to input face image (should be cropped face)
-            normalize: Whether to L2-normalize the embedding
-            compute_quality: Whether to compute quality score
-
-        Returns:
-            Tuple of (embedding, quality_score)
-                - embedding: 1D numpy array (512D for ArcFace)
-                - quality_score: Quality score in [0.0, 1.0] or None
-        """
+        self,
+        image_path: str | Path,
+        normalize: bool = True,
+        compute_quality: bool = True,
+    ) -> tuple[NDArray[np.float32], float | None]:
         image_path = Path(image_path)
-
         if not image_path.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        # Load image
         image = Image.open(image_path)
 
-        # Preprocess
         input_array = self.preprocess(image)
 
-        # Run inference
-        embedding = self.session.run([self.output_name], {self.input_name: input_array})[0]
+        raw_output = cast(
+            NDArray[np.float32],
+            self.session.run(
+                [self.output_name],
+                {self.input_name: input_array},
+            )[0],
+        )
 
-        # Post-process (L2 normalization)
-        embedding = self.postprocess(embedding, normalize=normalize)
+        embedding = self.postprocess(raw_output, normalize=normalize)
 
-        # Compute quality score if requested
-        quality_score = None
+        quality_score: float | None = None
         if compute_quality:
             try:
                 quality_score = self.compute_quality_score(image)
-            except ImportError:
-                logger.warning(
-                    "scipy not available, skipping quality score computation. "
-                    "Install scipy for quality scores: pip install scipy"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to compute quality score: {e}")
+            except Exception as exc:
+                logger.warning(f"Failed to compute quality score: {exc}")
 
         logger.info(
-            f"Generated embedding for {image_path}: "
-            f"dim={len(embedding)}, quality={quality_score}"
+            f"Generated embedding for {image_path}: dim={embedding.shape[0]}, quality={quality_score}"
         )
 
         return embedding, quality_score
