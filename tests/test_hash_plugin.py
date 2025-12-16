@@ -8,12 +8,11 @@ import pytest
 from PIL import Image
 from pydantic import ValidationError
 
+from cl_ml_tools.common.schemas import Job
 from cl_ml_tools.plugins.hash import HashParams, HashTask
 from cl_ml_tools.plugins.hash.algo.generic import sha512hash_generic
 from cl_ml_tools.plugins.hash.algo.image import sha512hash_image
 from cl_ml_tools.plugins.hash.algo.md5 import get_md5_hexdigest
-from cl_ml_tools.common.schemas import Job
-
 
 # Helper type for params dict
 ParamsDict = dict[str, list[str] | Literal["sha512", "md5"]]
@@ -256,8 +255,9 @@ class TestVideoHash:
 
     def test_return_format_is_bytes(self):
         """Test that function signature returns bytes."""
-        from cl_ml_tools.plugins.hash.algo.video import sha512hash_video2
         import inspect
+
+        from cl_ml_tools.plugins.hash.algo.video import sha512hash_video2
 
         sig = inspect.signature(sha512hash_video2)
         # Function should return bytes (not str)
