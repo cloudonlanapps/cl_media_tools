@@ -32,6 +32,7 @@ dependencies = [
     "onnx>=1.15.0",
     "onnxruntime>=1.16.0",
     "httpx>=0.24",
+    "scipy>=1.10.0",
 ]
 
 [project.optional-dependencies]
@@ -51,6 +52,10 @@ image_conversion = "cl_ml_tools.plugins.image_conversion.task:ImageConversionTas
 hash = "cl_ml_tools.plugins.hash.task:HashTask"
 hls_streaming = "cl_ml_tools.plugins.hls_streaming.task:HLSStreamingTask"
 exif = "cl_ml_tools.plugins.exif.task:ExifTask"
+face_detection = "cl_ml_tools.plugins.face_detection.task:FaceDetectionTask"
+face_embedding = "cl_ml_tools.plugins.face_embedding.task:FaceEmbeddingTask"
+dino_embedding = "cl_ml_tools.plugins.dino_embedding.task:DinoEmbeddingTask"
+clip_embedding = "cl_ml_tools.plugins.clip_embedding.task:ClipEmbeddingTask"
 
 [project.entry-points."cl_ml_tools.routes"]
 media_thumbnail = "cl_ml_tools.plugins.media_thumbnail.routes:create_router"
@@ -58,6 +63,10 @@ image_conversion = "cl_ml_tools.plugins.image_conversion.routes:create_router"
 hash = "cl_ml_tools.plugins.hash.routes:create_router"
 hls_streaming = "cl_ml_tools.plugins.hls_streaming.routes:create_router"
 exif = "cl_ml_tools.plugins.exif.routes:create_router"
+face_detection = "cl_ml_tools.plugins.face_detection.routes:create_router"
+face_embedding = "cl_ml_tools.plugins.face_embedding.routes:create_router"
+dino_embedding = "cl_ml_tools.plugins.dino_embedding.routes:create_router"
+clip_embedding = "cl_ml_tools.plugins.clip_embedding.routes:create_router"
 
 
 [build-system]

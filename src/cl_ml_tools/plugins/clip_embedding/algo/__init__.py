@@ -1,0 +1,1 @@
+"""MobileCLIP embedding algorithms."""
