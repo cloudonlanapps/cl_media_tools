@@ -1,5 +1,5 @@
 from enum import IntEnum
-from typing import Any, List, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 class GraphOptimizationLevel(IntEnum):
     ORT_DISABLE_ALL = 0
@@ -29,8 +29,8 @@ class InferenceSession:
     def run(
         self,
         output_names: Sequence[str] | None,
-        input_feed: Mapping[str, Any],
-    ) -> List[Any]: ...
+        input_feed: Mapping[str, Any],  # pyright: ignore[reportExplicitAny]
+    ) -> list[Any]: ...  # pyright: ignore[reportExplicitAny]
     def get_inputs(self) -> list[NodeArg]: ...
     def get_outputs(self) -> list[NodeArg]: ...
 
