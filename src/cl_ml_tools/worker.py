@@ -3,12 +3,15 @@
 from importlib.metadata import entry_points
 from typing import cast
 
+from cl_ml_tools.common.file_storage import JobStorage
+
 from .common.compute_module import ComputeModule
-from .common.job_repository import JobRecordUpdate, JobRepository
-from .common.schemas import BaseJobParams, Job
+from .common.job_repository import JobRepository
+from .common.schema_job import BaseJobParams, TaskOutput
+from .common.schema_job_record import JobRecord, JobRecordUpdate
 
 
-def get_task_registry() -> dict[str, ComputeModule[BaseJobParams]]:
+def get_task_registry() -> dict[str, ComputeModule[BaseJobParams, TaskOutput]]:
     """Dynamically load all tasks from entry points.
 
     Discovers tasks from [project.entry-points."cl_ml_tools.tasks"]
@@ -20,13 +23,13 @@ def get_task_registry() -> dict[str, ComputeModule[BaseJobParams]]:
     Raises:
         RuntimeError: If a plugin fails to load (missing dependency, etc.)
     """
-    registry: dict[str, ComputeModule[BaseJobParams]] = {}
+    registry: dict[str, ComputeModule[BaseJobParams, TaskOutput]] = {}
     eps = entry_points(group="cl_ml_tools.tasks")
 
     for ep in eps:
         try:
-            task_class = cast(type[ComputeModule[BaseJobParams]], ep.load())
-            task: ComputeModule[BaseJobParams] = task_class()
+            task_class = cast(type[ComputeModule[BaseJobParams, TaskOutput]], ep.load())
+            task: ComputeModule[BaseJobParams, TaskOutput] = task_class()
             task_type: str = task.task_type
             registry[task_type] = task
         except Exception as e:
@@ -59,7 +62,8 @@ class Worker:
     def __init__(
         self,
         repository: JobRepository,
-        task_registry: dict[str, ComputeModule[BaseJobParams]] | None = None,
+        job_storage: JobStorage,
+        task_registry: dict[str, ComputeModule[BaseJobParams, TaskOutput]] | None = None,
     ):
         """Initialize worker.
 
@@ -68,9 +72,10 @@ class Worker:
             task_registry: Optional custom registry. If None, auto-discovers from entry points.
         """
         self.repository: JobRepository = repository
-        self.task_registry: dict[str, ComputeModule[BaseJobParams]] = (
+        self.task_registry: dict[str, ComputeModule[BaseJobParams, TaskOutput]] = (
             task_registry if task_registry is not None else get_task_registry()
         )
+        self.job_storage: JobStorage = job_storage
 
     def get_supported_task_types(self) -> list[str]:
         """Return list of task types this worker can handle.
@@ -101,56 +106,23 @@ class Worker:
 
         # Fetch job (atomic claim - no race condition)
         # fetch_next_job() atomically finds AND sets status="processing"
-        job = self.repository.fetch_next_job(valid_types)
-        if not job:
+        jobRecord = self.repository.fetch_next_job(valid_types)
+        if not jobRecord:
             return False
+        # Get task handler
+        task = self.task_registry[jobRecord.task_type]
 
-        # Get task handler - guaranteed to exist after validation
-        task = self.task_registry[job.task_type]
+        # Progress callback updates repository
+        def progress_callback(pct: int) -> None:
+            _ = self.repository.update_job(jobRecord.job_id, JobRecordUpdate(progress=min(99, pct)))
 
         # Execute task
-        await self._execute_task(job, task)
-
-        return True
-
-    async def _execute_task(self, job: Job, task: ComputeModule[BaseJobParams]) -> None:
-        """Execute a task and update job status.
-
-        Args:
-            job: Job to execute
-            task: ComputeModule to use for execution
-        """
         try:
-            # Parse params using task's schema
-            params_class = task.get_schema()
-            # Use Pydantic's model_validate to handle Mapping[str, object] -> BaseJobParams
-            params = params_class.model_validate(job.params)
-
-            # Progress callback updates repository
-            def progress_callback(pct: int) -> None:
-                _ = self.repository.update_job(job.job_id, {"progress": min(99, pct)})
-
-            # Execute task
-            result = await task.execute(job, params, progress_callback)
-
-            # Update status based on result
-            if result.status == "ok":
-                updates: JobRecordUpdate = {
-                    "status": "completed",
-                    "progress": 100,
-                }
-                task_output = result.task_output
-                if task_output is not None:
-                    updates["task_output"] = dict(task_output)
-                _ = self.repository.update_job(job.job_id, updates)
-            else:
-                error_msg = result.error
-                _ = self.repository.update_job(
-                    job.job_id,
-                    {
-                        "status": "error",
-                        "error_message": error_msg if error_msg is not None else "Unknown error",
-                    },
-                )
+            result = await task.execute(jobRecord, self.job_storage, progress_callback)
+            _ = self.repository.update_job(jobRecord.job_id, result)
         except Exception as e:
-            _ = self.repository.update_job(job.job_id, {"status": "error", "error_message": str(e)})
+            _ = self.repository.update_job(
+                jobRecord.job_id,
+                JobRecordUpdate(status="error", error_message=str(e), progress=100),
+            )
+        return True  # Job error is communicated, it is not worker's error
