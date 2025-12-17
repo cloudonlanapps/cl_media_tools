@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
-from cl_ml_tools.common.schemas import Job
+from cl_ml_tools.common.schema_job import Job
 from cl_ml_tools.plugins.exif.algo.exif_tool_wrapper import MetadataExtractor
 from cl_ml_tools.plugins.exif.schema import ExifMetadata, ExifParams
 from cl_ml_tools.plugins.exif.task import ExifTask
@@ -188,15 +188,11 @@ class TestMetadataExtractor:
             with pytest.raises(RuntimeError, match="ExifTool is not installed"):
                 MetadataExtractor()
 
-    def test_extract_specific_tags(
-        self, sample_image_with_exif: str, tmp_path: Path
-    ) -> None:
+    def test_extract_specific_tags(self, sample_image_with_exif: str, tmp_path: Path) -> None:
         """Test extracting specific EXIF tags."""
         # Skip if exiftool not installed
         try:
-            subprocess.run(
-                ["exiftool", "-ver"], check=True, capture_output=True, timeout=5
-            )
+            subprocess.run(["exiftool", "-ver"], check=True, capture_output=True, timeout=5)
         except (FileNotFoundError, subprocess.CalledProcessError):
             pytest.skip("ExifTool not installed")
 
@@ -210,15 +206,11 @@ class TestMetadataExtractor:
         # May have Make/Model if exiftool can read PIL-generated EXIF
         # (this is platform-dependent)
 
-    def test_extract_all_metadata(
-        self, sample_image_with_exif: str, tmp_path: Path
-    ) -> None:
+    def test_extract_all_metadata(self, sample_image_with_exif: str, tmp_path: Path) -> None:
         """Test extracting all EXIF tags."""
         # Skip if exiftool not installed
         try:
-            subprocess.run(
-                ["exiftool", "-ver"], check=True, capture_output=True, timeout=5
-            )
+            subprocess.run(["exiftool", "-ver"], check=True, capture_output=True, timeout=5)
         except (FileNotFoundError, subprocess.CalledProcessError):
             pytest.skip("ExifTool not installed")
 
@@ -265,9 +257,7 @@ class TestExifTaskExecution:
         """Test task execution with image containing EXIF data."""
         # Skip if exiftool not installed
         try:
-            subprocess.run(
-                ["exiftool", "-ver"], check=True, capture_output=True, timeout=5
-            )
+            subprocess.run(["exiftool", "-ver"], check=True, capture_output=True, timeout=5)
         except (FileNotFoundError, subprocess.CalledProcessError):
             pytest.skip("ExifTool not installed")
 
@@ -308,9 +298,7 @@ class TestExifTaskExecution:
         """Test task execution with specific tags requested."""
         # Skip if exiftool not installed
         try:
-            subprocess.run(
-                ["exiftool", "-ver"], check=True, capture_output=True, timeout=5
-            )
+            subprocess.run(["exiftool", "-ver"], check=True, capture_output=True, timeout=5)
         except (FileNotFoundError, subprocess.CalledProcessError):
             pytest.skip("ExifTool not installed")
 
@@ -339,9 +327,7 @@ class TestExifTaskExecution:
         """Test task execution with non-existent file."""
         # Skip if exiftool not installed
         try:
-            subprocess.run(
-                ["exiftool", "-ver"], check=True, capture_output=True, timeout=5
-            )
+            subprocess.run(["exiftool", "-ver"], check=True, capture_output=True, timeout=5)
         except (FileNotFoundError, subprocess.CalledProcessError):
             pytest.skip("ExifTool not installed")
 
@@ -402,9 +388,7 @@ class TestExifTaskExecution:
         """Test task execution with multiple files."""
         # Skip if exiftool not installed
         try:
-            subprocess.run(
-                ["exiftool", "-ver"], check=True, capture_output=True, timeout=5
-            )
+            subprocess.run(["exiftool", "-ver"], check=True, capture_output=True, timeout=5)
         except (FileNotFoundError, subprocess.CalledProcessError):
             pytest.skip("ExifTool not installed")
 

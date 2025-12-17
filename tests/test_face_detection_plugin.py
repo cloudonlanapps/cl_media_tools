@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 from PIL import Image
 
-from cl_ml_tools.common.schemas import Job
+from cl_ml_tools.common.schema_job import Job
 from cl_ml_tools.plugins.face_detection.schema import (
     BoundingBox,
     FaceDetectionParams,

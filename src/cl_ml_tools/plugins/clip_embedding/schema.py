@@ -59,14 +59,3 @@ class ClipEmbedding(BaseModel):
             embedding_dim=embedding.shape[0],
             normalized=normalized,
         )
-
-
-class ClipEmbeddingResult(BaseModel):
-    """Result for a single image's MobileCLIP embedding."""
-
-    file_path: str = Field(..., description="Path to the input image file")
-    embedding: ClipEmbedding | None = Field(
-        None, description="MobileCLIP embedding (None if error)"
-    )
-    status: Literal["success", "error"] = Field(..., description="Processing status")
-    error: str | None = Field(None, description="Error message if status is 'error'")

@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Generic
 
+from .file_storage import JobStorage
 from .schema_job import P, Q
 
 
@@ -28,6 +29,7 @@ class ComputeModule(ABC, Generic[P, Q]):
         self,
         job_id: str,
         params: P,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
     ) -> Q:
         """Execute the task."""

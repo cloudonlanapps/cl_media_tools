@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from ...common.file_storage import FileStorage
+from ...common.file_storage import JobStorage
 from ...common.job_repository import JobRepository
 from ...common.schemas import Job
 
@@ -18,7 +18,7 @@ class UserLike(Protocol):
 
 def create_router(
     repository: JobRepository,
-    file_storage: FileStorage,
+    file_storage: JobStorage,
     get_current_user: Callable[[], UserLike | None],
 ) -> APIRouter:
     """Create router with injected dependencies.

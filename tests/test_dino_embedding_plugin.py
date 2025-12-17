@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from cl_ml_tools.common.schemas import Job
+from cl_ml_tools.common.schema_job import Job
 from cl_ml_tools.plugins.dino_embedding.schema import (
     DinoEmbedding,
     DinoEmbeddingParams,
@@ -198,9 +198,7 @@ class TestDinoEmbeddingTask:
         mock_embedding = mock_embedding / np.linalg.norm(mock_embedding)
         mock_embedder.embed.return_value = mock_embedding
 
-        with patch.object(
-            dino_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(dino_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await dino_embedding_task.execute(job, params, mock_progress_callback)
 
         # Verify result
@@ -244,9 +242,7 @@ class TestDinoEmbeddingTask:
         mock_embedder = Mock()
         mock_embedder.embed.side_effect = FileNotFoundError("Image file not found")
 
-        with patch.object(
-            dino_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(dino_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await dino_embedding_task.execute(job, params, mock_progress_callback)
 
         # Should return error status
@@ -294,9 +290,7 @@ class TestDinoEmbeddingTask:
 
         mock_embedder.embed.side_effect = mock_embed_side_effect
 
-        with patch.object(
-            dino_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(dino_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await dino_embedding_task.execute(job, params, mock_progress_callback)
 
         # Verify result
@@ -339,9 +333,7 @@ class TestDinoEmbeddingTask:
         mock_embedding = np.random.randn(384).astype(np.float32)
         mock_embedder.embed.return_value = mock_embedding
 
-        with patch.object(
-            dino_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(dino_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await dino_embedding_task.execute(job, params, mock_progress_callback)
 
         # Verify embedder was called with normalize=False
@@ -417,9 +409,7 @@ class TestDinoEmbeddingTask:
             RuntimeError("Inference failed"),
         ]
 
-        with patch.object(
-            dino_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(dino_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await dino_embedding_task.execute(job, params, mock_progress_callback)
 
         # Should return ok (partial success)

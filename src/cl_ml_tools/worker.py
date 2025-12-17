@@ -4,7 +4,7 @@ from importlib.metadata import entry_points
 from typing import cast
 
 from .common.compute_module import ComputeModule
-from .common.job_repository import JobRepository, JobUpdate
+from .common.job_repository import JobRecordUpdate, JobRepository
 from .common.schemas import BaseJobParams, Job
 
 
@@ -135,7 +135,7 @@ class Worker:
 
             # Update status based on result
             if result.status == "ok":
-                updates: JobUpdate = {
+                updates: JobRecordUpdate = {
                     "status": "completed",
                     "progress": 100,
                 }

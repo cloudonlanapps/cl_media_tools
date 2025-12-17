@@ -5,7 +5,7 @@ from typing import Callable, Protocol, cast
 
 from fastapi import APIRouter
 
-from .common.file_storage import FileStorage
+from .common.file_storage import JobStorage
 from .common.job_repository import JobRepository
 
 
@@ -17,14 +17,14 @@ class UserLike(Protocol):
 
 # Type alias for route factory functions loaded from entry points
 RouteFactory = Callable[
-    [JobRepository, FileStorage, Callable[[], UserLike | None]],
+    [JobRepository, JobStorage, Callable[[], UserLike | None]],
     APIRouter,
 ]
 
 
 def create_master_router(
     repository: JobRepository,
-    file_storage: FileStorage,
+    file_storage: JobStorage,
     get_current_user: Callable[[], UserLike | None],
 ) -> APIRouter:
     """Dynamically aggregate all plugin routes from entry points.

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from cl_ml_tools.common.schemas import Job
+from cl_ml_tools.common.schema_job import Job
 from cl_ml_tools.plugins.clip_embedding.schema import (
     ClipEmbedding,
     ClipEmbeddingParams,
@@ -86,9 +86,7 @@ class TestClipEmbedding:
         """Test creating ClipEmbedding from numpy array."""
         embedding_array = np.random.randn(512).astype(np.float32)
 
-        clip_embedding = ClipEmbedding.from_numpy(
-            embedding=embedding_array, normalized=True
-        )
+        clip_embedding = ClipEmbedding.from_numpy(embedding=embedding_array, normalized=True)
 
         assert clip_embedding.embedding_dim == 512
         assert len(clip_embedding.embedding) == 512
@@ -97,9 +95,7 @@ class TestClipEmbedding:
     def test_to_numpy(self) -> None:
         """Test converting ClipEmbedding to numpy array."""
         embedding_list = [0.1, 0.2, 0.3, 0.4, 0.5]
-        clip_embedding = ClipEmbedding(
-            embedding=embedding_list, embedding_dim=5, normalized=False
-        )
+        clip_embedding = ClipEmbedding(embedding=embedding_list, embedding_dim=5, normalized=False)
 
         embedding_array = clip_embedding.to_numpy()
 
@@ -112,9 +108,7 @@ class TestClipEmbedding:
         """Test that embedding dimension matches length when using from_numpy."""
         # from_numpy() ensures consistency automatically
         embedding_array = np.random.randn(512).astype(np.float32)
-        clip_embedding = ClipEmbedding.from_numpy(
-            embedding=embedding_array, normalized=True
-        )
+        clip_embedding = ClipEmbedding.from_numpy(embedding=embedding_array, normalized=True)
 
         assert len(clip_embedding.embedding) == 512
         assert clip_embedding.embedding_dim == 512
@@ -122,9 +116,7 @@ class TestClipEmbedding:
     def test_correct_dimension_512(self) -> None:
         """Test that 512D embeddings are correctly validated."""
         embedding_array = np.random.randn(512).astype(np.float32)
-        clip_embedding = ClipEmbedding.from_numpy(
-            embedding=embedding_array, normalized=True
-        )
+        clip_embedding = ClipEmbedding.from_numpy(embedding=embedding_array, normalized=True)
 
         assert clip_embedding.embedding_dim == 512
         assert len(clip_embedding.embedding) == 512
@@ -135,9 +127,7 @@ class TestClipEmbeddingResult:
 
     def test_success_result(self) -> None:
         """Test successful MobileCLIP embedding result."""
-        embedding = ClipEmbedding(
-            embedding=[0.1] * 512, embedding_dim=512, normalized=True
-        )
+        embedding = ClipEmbedding(embedding=[0.1] * 512, embedding_dim=512, normalized=True)
 
         result = ClipEmbeddingResult(
             file_path="/test/image.jpg", embedding=embedding, status="success"
@@ -210,9 +200,7 @@ class TestClipEmbeddingTask:
         mock_embedding = mock_embedding / np.linalg.norm(mock_embedding)
         mock_embedder.embed.return_value = mock_embedding
 
-        with patch.object(
-            clip_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(clip_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await clip_embedding_task.execute(job, params, mock_progress_callback)
 
         # Verify result
@@ -257,9 +245,7 @@ class TestClipEmbeddingTask:
         mock_embedder = Mock()
         mock_embedder.embed.side_effect = FileNotFoundError("Image file not found")
 
-        with patch.object(
-            clip_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(clip_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await clip_embedding_task.execute(job, params, mock_progress_callback)
 
         # Should return error status
@@ -307,9 +293,7 @@ class TestClipEmbeddingTask:
 
         mock_embedder.embed.side_effect = mock_embed_side_effect
 
-        with patch.object(
-            clip_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(clip_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await clip_embedding_task.execute(job, params, mock_progress_callback)
 
         # Verify result
@@ -352,9 +336,7 @@ class TestClipEmbeddingTask:
         mock_embedding = np.random.randn(512).astype(np.float32)
         mock_embedder.embed.return_value = mock_embedding
 
-        with patch.object(
-            clip_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(clip_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await clip_embedding_task.execute(job, params, mock_progress_callback)
 
         # Verify embedder was called with normalize=False
@@ -430,9 +412,7 @@ class TestClipEmbeddingTask:
             RuntimeError("Inference failed"),
         ]
 
-        with patch.object(
-            clip_embedding_task, "_get_embedder", return_value=mock_embedder
-        ):
+        with patch.object(clip_embedding_task, "_get_embedder", return_value=mock_embedder):
             result = await clip_embedding_task.execute(job, params, mock_progress_callback)
 
         # Should return ok (partial success)
@@ -472,9 +452,7 @@ class TestClipEmbeddingAlgorithm:
     def test_embedding_dimension_consistency(self) -> None:
         """Test that embeddings maintain 512D dimensionality."""
         embedding_array = np.random.randn(512).astype(np.float32)
-        clip_embedding = ClipEmbedding.from_numpy(
-            embedding=embedding_array, normalized=True
-        )
+        clip_embedding = ClipEmbedding.from_numpy(embedding=embedding_array, normalized=True)
 
         assert clip_embedding.embedding_dim == 512
         assert len(clip_embedding.embedding) == 512
@@ -538,9 +516,7 @@ class TestClipEmbeddingAlgorithm:
         # Create unnormalized embedding
         embedding_unnorm = np.random.randn(512).astype(np.float32) * 10  # Scale up
 
-        clip_emb_unnorm = ClipEmbedding.from_numpy(
-            embedding=embedding_unnorm, normalized=False
-        )
+        clip_emb_unnorm = ClipEmbedding.from_numpy(embedding=embedding_unnorm, normalized=False)
         assert clip_emb_unnorm.normalized is False
 
         # Create normalized embedding

@@ -347,7 +347,7 @@ class TestHLSStreamingTask:
         mock_progress_callback: MockProgressCallback,
     ) -> None:
         """Test execute with default variants."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(input_paths=[sample_video_file], output_paths=[output_dir])
@@ -369,7 +369,7 @@ class TestHLSStreamingTask:
         tmp_path: Path,
     ) -> None:
         """Test execute with custom variants."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         custom_variants = [VariantConfig(resolution=480, bitrate=1500)]
@@ -393,7 +393,7 @@ class TestHLSStreamingTask:
         tmp_path: Path,
     ) -> None:
         """Test execute with original quality."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(
@@ -416,7 +416,7 @@ class TestHLSStreamingTask:
         mock_progress_callback: MockProgressCallback,
     ) -> None:
         """Test execute with multiple files."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir1 = str(tmp_path / "output1")
         output_dir2 = str(tmp_path / "output2")
@@ -442,7 +442,7 @@ class TestHLSStreamingTask:
         mock_progress_callback: MockProgressCallback,
     ) -> None:
         """Test progress callback is called."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(input_paths=[sample_video_file], output_paths=[output_dir])
@@ -457,7 +457,7 @@ class TestHLSStreamingTask:
     @pytest.mark.asyncio
     async def test_file_not_found_error(self, hls_task: HLSStreamingTask, tmp_path: Path) -> None:
         """Test file not found error handling."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(
@@ -478,7 +478,7 @@ class TestHLSStreamingTask:
         tmp_path: Path,
     ) -> None:
         """Test output structure uses Pydantic models."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(input_paths=[sample_video_file], output_paths=[output_dir])
@@ -579,7 +579,7 @@ class TestHLSPluginIntegration:
         tmp_path: Path,
     ) -> None:
         """Test single variant conversion end-to-end."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(
@@ -602,7 +602,7 @@ class TestHLSPluginIntegration:
         tmp_path: Path,
     ) -> None:
         """Test multi-variant conversion end-to-end."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(input_paths=[sample_video_file], output_paths=[output_dir])
@@ -621,7 +621,7 @@ class TestHLSPluginIntegration:
         tmp_path: Path,
     ) -> None:
         """Test original quality preservation end-to-end."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(
@@ -638,7 +638,7 @@ class TestHLSPluginIntegration:
     @pytest.mark.asyncio
     async def test_error_handling(self, hls_task: HLSStreamingTask, tmp_path: Path) -> None:
         """Test error handling end-to-end."""
-        from cl_ml_tools.common.schemas import Job
+        from cl_ml_tools.common.schema_job import Job
 
         output_dir = str(tmp_path / "output")
         params = HLSStreamingParams(

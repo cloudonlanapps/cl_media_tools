@@ -1,7 +1,7 @@
 """cl_ml_tools - Tools for master-worker media processing / ML ."""
 
 from .common.compute_module import ComputeModule
-from .common.file_storage import FileStorage
+from .common.file_storage import JobStorage
 from .common.job_repository import JobRepository
 from .common.schemas import BaseJobParams, Job
 from .master import create_master_router
@@ -20,7 +20,7 @@ __all__ = [
     "BaseJobParams",
     "ComputeModule",
     "JobRepository",
-    "FileStorage",
+    "JobStorage",
     "__version__",
     "Worker",
     "MQTTBroadcaster",

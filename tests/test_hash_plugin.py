@@ -10,7 +10,7 @@ import pytest
 from PIL import Image
 from pydantic import ValidationError
 
-from cl_ml_tools.common.schemas import Job
+from cl_ml_tools.common.schema_job import Job
 from cl_ml_tools.plugins.hash import HashParams, HashTask
 from cl_ml_tools.plugins.hash.algo.generic import sha512hash_generic
 from cl_ml_tools.plugins.hash.algo.image import sha512hash_image

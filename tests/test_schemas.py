@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from cl_ml_tools.common.schemas import BaseJobParams, Job
+from cl_ml_tools.common.schema_job import BaseJobParams, Job
 
 
 class TestBaseJobParams:
