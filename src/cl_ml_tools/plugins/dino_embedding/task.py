@@ -6,18 +6,19 @@ from typing import Callable, override
 import numpy as np
 
 from ...common.compute_module import ComputeModule
-from ...common.schemas import BaseJobParams, Job, TaskResult
+from ...common.file_storage import JobStorage
 from .algo.dino_embedder import DinoEmbedder
-from .schema import DinoEmbeddingParams
+from .schema import DinoEmbeddingOutput, DinoEmbeddingParams
 
 logger = logging.getLogger(__name__)
 
 
-class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams]):
+class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams, DinoEmbeddingOutput]):
     """Compute module for generating DINOv2 embeddings using ONNX model."""
 
+    schema: type[DinoEmbeddingParams] = DinoEmbeddingParams
+
     def __init__(self) -> None:
-        super().__init__()
         self._embedder: DinoEmbedder | None = None
 
     @property
@@ -26,70 +27,44 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams]):
         return "dino_embedding"
 
     @override
-    def get_schema(self) -> type[BaseJobParams]:
-        return DinoEmbeddingParams
-
-    def _get_embedder(self) -> DinoEmbedder:
+    def setup(self) -> None:
         if self._embedder is None:
-            self._embedder = DinoEmbedder()
-            logger.info("DINOv2 embedder initialized successfully")
-        return self._embedder
+            try:
+                self._embedder = DinoEmbedder()
+                logger.info("DINOv2 embedder initialized successfully")
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to initialize DINOv2 embedder", exc_info=exc)
+                raise RuntimeError(
+                    "Failed to initialize DINOv2 embedder. "
+                    + "Ensure ONNX Runtime is installed and the model is available."
+                ) from exc
 
     @override
-    async def execute(
+    async def run(
         self,
-        job: Job,
+        job_id: str,
         params: DinoEmbeddingParams,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> TaskResult:
-        """Generate DINOv2 embedding and store it on disk."""
+    ) -> DinoEmbeddingOutput:
+        if not self._embedder:
+            raise RuntimeError("DINOv2 embedder is not initialized")
 
-        # Phase 1: get embedder
-        try:
-            embedder = self._get_embedder()
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to initialize DINOv2 embedder", exc_info=exc)
-            return TaskResult(
-                status="error",
-                error=(
-                    f"Failed to initialize DINOv2 embedder: {exc}. "
-                    "Ensure ONNX Runtime is installed and the model can be downloaded."
-                ),
-            )
+        embedding = self._embedder.embed(
+            image_path=params.input_path,
+            normalize=params.normalize,
+        )
 
-        # Phase 2: generate + persist embedding
-        try:
-            embedding = embedder.embed(
-                image_path=params.input_path,
-                normalize=params.normalize,
-            )
+        path = storage.allocate_path(
+            job_id=job_id,
+            relative_path=params.output_path,
+        )
+        np.save(path, embedding)
 
-            np.save(params.output_path, embedding)
+        if progress_callback:
+            progress_callback(100)
 
-            if progress_callback:
-                progress_callback(100)
-
-            return TaskResult(
-                status="ok",
-                task_output={
-                    "embedding_dim": int(embedding.shape[0]),
-                },
-            )
-
-        except FileNotFoundError:
-            logger.error("File not found: %s", params.input_path)
-            return TaskResult(
-                status="error",
-                error="Input file not found",
-            )
-
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "Failed to generate DINOv2 embedding for %s",
-                params.input_path,
-                exc_info=exc,
-            )
-            return TaskResult(
-                status="error",
-                error=str(exc),
-            )
+        return DinoEmbeddingOutput(
+            normalized=params.normalize,
+            embedding_dim=int(embedding.shape[0]),
+        )

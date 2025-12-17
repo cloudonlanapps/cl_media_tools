@@ -7,18 +7,19 @@ from typing import Callable, override
 from PIL import Image
 
 from ...common.compute_module import ComputeModule
-from ...common.schemas import BaseJobParams, Job, TaskResult
+from ...common.file_storage import JobStorage
 from .algo.face_detector import FaceDetector
-from .schema import BoundingBox, FaceDetectionParams
+from .schema import BoundingBox, FaceDetectionOutput, FaceDetectionParams
 
 logger = logging.getLogger(__name__)
 
 
-class FaceDetectionTask(ComputeModule[FaceDetectionParams]):
+class FaceDetectionTask(ComputeModule[FaceDetectionParams, FaceDetectionOutput]):
     """Compute module for detecting faces in an image using ONNX model."""
 
+    schema: type[FaceDetectionParams] = FaceDetectionParams
+
     def __init__(self) -> None:
-        super().__init__()
         self._detector: FaceDetector | None = None
 
     @property
@@ -27,92 +28,65 @@ class FaceDetectionTask(ComputeModule[FaceDetectionParams]):
         return "face_detection"
 
     @override
-    def get_schema(self) -> type[BaseJobParams]:
-        return FaceDetectionParams
-
-    def _get_detector(self) -> FaceDetector:
+    def setup(self) -> None:
         if self._detector is None:
-            self._detector = FaceDetector()
-            logger.info("Face detector initialized successfully")
-        return self._detector
+            try:
+                self._detector = FaceDetector()
+                logger.info("Face detector initialized successfully")
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Face detector initialization failed", exc_info=exc)
+                raise RuntimeError(
+                    "Failed to initialize face detector. "
+                    + "Ensure ONNX Runtime is installed and the model is available."
+                ) from exc
 
     @override
-    async def execute(
+    async def run(
         self,
-        job: Job,
+        job_id: str,
         params: FaceDetectionParams,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> TaskResult:
-        """Detect faces in a single image and write results to disk."""
+    ) -> FaceDetectionOutput:
+        if not self._detector:
+            raise RuntimeError("Face detector is not initialized")
 
-        # Phase 1: get detector
-        try:
-            detector = self._get_detector()
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Face detector initialization failed", exc_info=exc)
-            return TaskResult(
-                status="error",
-                error=(
-                    f"Failed to initialize face detector: {exc}. "
-                    "Ensure ONNX Runtime is installed and the model can be downloaded."
-                ),
+        detections = self._detector.detect(
+            image_path=params.input_path,
+            confidence_threshold=params.confidence_threshold,
+            nms_threshold=params.nms_threshold,
+        )
+
+        with Image.open(params.input_path) as img:
+            image_width, image_height = img.size
+
+        faces = [
+            BoundingBox(
+                x1=det["x1"],
+                y1=det["y1"],
+                x2=det["x2"],
+                y2=det["y2"],
+                confidence=det["confidence"],
             )
+            for det in detections
+        ]
 
-        # Phase 2: detect faces
-        try:
-            detections = detector.detect(
-                image_path=params.input_path,
-                confidence_threshold=params.confidence_threshold,
-                nms_threshold=params.nms_threshold,
-            )
+        output = FaceDetectionOutput(
+            faces=faces,
+            num_faces=len(faces),
+            image_width=image_width,
+            image_height=image_height,
+        )
 
-            with Image.open(params.input_path) as img:
-                image_width, image_height = img.size
+        path = storage.allocate_path(
+            job_id=job_id,
+            relative_path=params.output_path,
+        )
 
-            faces = [
-                BoundingBox(
-                    x1=det["x1"],
-                    y1=det["y1"],
-                    x2=det["x2"],
-                    y2=det["y2"],
-                    confidence=det["confidence"],
-                ).model_dump()
-                for det in detections
-            ]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(output.model_dump(), f, indent=2)
 
-            detection_output = {
-                "faces": faces,
-                "num_faces": len(faces),
-                "image_width": image_width,
-                "image_height": image_height,
-            }
+        if progress_callback:
+            progress_callback(100)
 
-            # Persist detection result as JSON
-            with open(params.output_path, "w", encoding="utf-8") as f:
-                json.dump(detection_output, f, indent=2)
-
-            if progress_callback:
-                progress_callback(100)
-
-            return TaskResult(
-                status="ok",
-                task_output=detection_output,
-            )
-
-        except FileNotFoundError:
-            logger.error("File not found: %s", params.input_path)
-            return TaskResult(
-                status="error",
-                error="Input file not found",
-            )
-
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "Failed to detect faces in %s",
-                params.input_path,
-                exc_info=exc,
-            )
-            return TaskResult(
-                status="error",
-                error=str(exc),
-            )
+        return output

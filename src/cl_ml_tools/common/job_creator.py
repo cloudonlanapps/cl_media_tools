@@ -6,7 +6,7 @@ from fastapi import UploadFile
 from .file_storage import JobStorage
 from .job_repository import JobRepository
 from .schema_job import Job, P, Q
-from .schema_job_record import JobCreatedResponse
+from .schema_job_record import JobCreatedResponse, JobStatus
 
 
 class UserLike(Protocol):
@@ -41,7 +41,7 @@ async def create_job_from_upload(
         task_type=task_type,
         params=params,
         progress=0,
-        status="queued",
+        status=JobStatus.queued,
     )
 
     created_by = user.id if user else None

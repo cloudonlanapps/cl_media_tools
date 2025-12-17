@@ -5,15 +5,20 @@ import logging
 from typing import Callable, override
 
 from ...common.compute_module import ComputeModule
-from ...common.schemas import BaseJobParams, Job, TaskResult
+from ...common.file_storage import JobStorage
 from .algo.exif_tool_wrapper import MetadataExtractor
-from .schema import ExifMetadata, ExifParams
+from .schema import ExifMetadataOutput, ExifMetadataParams
 
 logger = logging.getLogger(__name__)
 
 
-class ExifTask(ComputeModule[ExifParams]):
+class ExifTask(ComputeModule[ExifMetadataParams, ExifMetadataOutput]):
     """Compute module for extracting EXIF metadata from a media file."""
+
+    schema: type[ExifMetadataParams] = ExifMetadataParams
+
+    def __init__(self) -> None:
+        self._extractor: MetadataExtractor | None = None
 
     @property
     @override
@@ -21,78 +26,53 @@ class ExifTask(ComputeModule[ExifParams]):
         return "exif"
 
     @override
-    def get_schema(self) -> type[BaseJobParams]:
-        return ExifParams
+    def setup(self) -> None:
+        if self._extractor is None:
+            try:
+                self._extractor = MetadataExtractor()
+            except RuntimeError as exc:
+                logger.error("ExifTool initialization failed", exc_info=exc)
+                raise RuntimeError(
+                    "ExifTool is not installed or not found in PATH. "
+                    + "Please install ExifTool: https://exiftool.org/"
+                ) from exc
 
     @override
-    async def execute(
+    async def run(
         self,
-        job: Job,
-        params: ExifParams,
+        job_id: str,
+        params: ExifMetadataParams,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> TaskResult:
-        """Extract EXIF metadata and store it as JSON."""
+    ) -> ExifMetadataOutput:
+        if not self._extractor:
+            raise RuntimeError("ExifTool is not initialized")
 
-        # Phase 1: initialize extractor
-        try:
-            extractor = MetadataExtractor()
-        except RuntimeError as exc:
-            logger.error("ExifTool initialization failed", exc_info=exc)
-            return TaskResult(
-                status="error",
-                error=(
-                    "ExifTool is not installed or not found in PATH. "
-                    "Please install ExifTool: https://exiftool.org/"
-                ),
-            )
-
-        # Phase 2: extract metadata
-        try:
-            if params.tags:
-                raw_metadata = extractor.extract_metadata(
-                    params.input_path,
-                    tags=params.tags,
-                )
-            else:
-                raw_metadata = extractor.extract_metadata_all(params.input_path)
-
-            if raw_metadata:
-                metadata = ExifMetadata.from_raw_metadata(raw_metadata)
-            else:
-                logger.warning("No EXIF metadata found for %s", params.input_path)
-                metadata = ExifMetadata()
-
-            output = {
-                "metadata": metadata.model_dump(),
-                "tags_requested": params.tags if params.tags else "all",
-            }
-
-            # Persist EXIF metadata as JSON
-            with open(params.output_path, "w", encoding="utf-8") as f:
-                json.dump(output, f, indent=2)
-
-            if progress_callback:
-                progress_callback(100)
-
-            return TaskResult(
-                status="ok",
-                task_output=output,
-            )
-
-        except FileNotFoundError:
-            logger.error("File not found: %s", params.input_path)
-            return TaskResult(
-                status="error",
-                error="Input file not found",
-            )
-
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "Failed to extract EXIF metadata from %s",
+        if params.tags:
+            raw_metadata = self._extractor.extract_metadata(
                 params.input_path,
-                exc_info=exc,
+                tags=params.tags,
             )
-            return TaskResult(
-                status="error",
-                error=str(exc),
+        else:
+            raw_metadata = self._extractor.extract_metadata_all(
+                params.input_path,
             )
+
+        if raw_metadata:
+            metadata = ExifMetadataOutput.from_raw_metadata(raw_metadata)
+        else:
+            logger.warning("No EXIF metadata found for %s", params.input_path)
+            metadata = ExifMetadataOutput()
+
+        path = storage.allocate_path(
+            job_id=job_id,
+            relative_path=params.output_path,
+        )
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(metadata.model_dump(), f, indent=2)
+
+        if progress_callback:
+            progress_callback(100)
+
+        return metadata

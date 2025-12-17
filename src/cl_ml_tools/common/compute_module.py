@@ -5,7 +5,7 @@ from typing import Callable, Generic
 
 from .file_storage import JobStorage
 from .schema_job import P, Q
-from .schema_job_record import JobRecord, JobRecordUpdate
+from .schema_job_record import JobRecord, JobRecordUpdate, JobStatus
 
 
 class ComputeModule(ABC, Generic[P, Q]):
@@ -30,6 +30,7 @@ class ComputeModule(ABC, Generic[P, Q]):
     @abstractmethod
     async def run(
         self,
+        job_id: str,
         params: P,
         storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
@@ -54,25 +55,26 @@ class ComputeModule(ABC, Generic[P, Q]):
             self.setup()
 
             output = await self.run(
+                job_record.job_id,
                 params,
                 storage,
                 progress_callback,
             )
 
             return JobRecordUpdate(
-                status="completed",
+                status=JobStatus.completed,
                 output=output.model_dump(),
                 progress=100,
             )
 
         except FileNotFoundError as exc:
             return JobRecordUpdate(
-                status="error",
+                status=JobStatus.error,
                 error_message=str(exc),
             )
 
         except Exception as exc:
             return JobRecordUpdate(
-                status="error",
+                status=JobStatus.error,
                 error_message=str(exc),
             )

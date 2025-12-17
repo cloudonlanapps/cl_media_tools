@@ -3,12 +3,11 @@
 from importlib.metadata import entry_points
 from typing import cast
 
-from cl_ml_tools.common.file_storage import JobStorage
-
 from .common.compute_module import ComputeModule
+from .common.file_storage import JobStorage
 from .common.job_repository import JobRepository
 from .common.schema_job import BaseJobParams, TaskOutput
-from .common.schema_job_record import  JobRecordUpdate
+from .common.schema_job_record import JobRecordUpdate, JobStatus
 
 
 def get_task_registry() -> dict[str, ComputeModule[BaseJobParams, TaskOutput]]:
@@ -123,6 +122,6 @@ class Worker:
         except Exception as e:
             _ = self.repository.update_job(
                 jobRecord.job_id,
-                JobRecordUpdate(status="error", error_message=str(e), progress=100),
+                JobRecordUpdate(status=JobStatus.error, error_message=str(e), progress=100),
             )
         return True  # Job error is communicated, it is not worker's error

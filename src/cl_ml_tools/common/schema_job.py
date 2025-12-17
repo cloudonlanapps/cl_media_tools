@@ -2,7 +2,7 @@ from typing import ClassVar, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .schema_job_record import JobRecord, JobRecordUpdate
+from .schema_job_record import JobRecord, JobRecordUpdate, JobStatus
 
 
 class BaseJobParams(BaseModel):
@@ -27,7 +27,7 @@ class Job(BaseModel, Generic[P, Q]):
     params: P
     output: Q | None = None
 
-    status: str = "queued"
+    status: JobStatus = JobStatus.queued
     progress: int = Field(0, ge=0, le=100)
     error_message: str | None = None
 

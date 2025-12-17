@@ -1,10 +1,18 @@
 from collections.abc import Mapping
+from enum import Enum
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 TaskOutputRecord = Mapping[str, object]
 TaskParamsRecord = Mapping[str, object]
+
+
+class JobStatus(str, Enum):
+    queued = "queued"
+    processing = "processing"
+    completed = "completed"
+    error = "error"
 
 
 class JobRecord(BaseModel):
@@ -16,7 +24,7 @@ class JobRecord(BaseModel):
     params: TaskParamsRecord
     output: TaskOutputRecord | None = None
 
-    status: str = "queued"
+    status: JobStatus = JobStatus.queued
     progress: int = Field(0, ge=0, le=100)
     error_message: str | None = None
 
@@ -24,7 +32,7 @@ class JobRecord(BaseModel):
 
 
 class JobRecordUpdate(BaseModel):
-    status: str | None = None
+    status: JobStatus | None = None
     progress: int | None = Field(default=None, ge=0, le=100)
     output: TaskOutputRecord | None = None
     error_message: str | None = None
