@@ -5,6 +5,7 @@ from typing import Callable, Generic
 
 from .file_storage import JobStorage
 from .schema_job import P, Q
+from .schema_job_record import JobRecord, JobRecordUpdate
 
 
 class ComputeModule(ABC, Generic[P, Q]):
@@ -27,10 +28,9 @@ class ComputeModule(ABC, Generic[P, Q]):
     @abstractmethod
     async def execute(
         self,
-        job_id: str,
-        params: P,
+        job_record: JobRecord,
         storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> Q:
+    ) -> JobRecordUpdate:
         """Execute the task."""
         ...

@@ -2,18 +2,11 @@
 
 from pydantic import BaseModel, Field
 
-from ...common.schemas import BaseJobParams
+from ...common.schema_job import BaseJobParams, TaskOutput
 
 
 class FaceDetectionParams(BaseJobParams):
-    """Parameters for face detection task.
-
-    Attributes:
-        input_paths: List of absolute paths to input images
-        output_paths: Not used for face detection (detections returned in task_output)
-        confidence_threshold: Minimum confidence score for detections (0.0-1.0)
-        nms_threshold: Non-maximum suppression threshold for overlapping boxes (0.0-1.0)
-    """
+    """Parameters for face detection task."""
 
     confidence_threshold: float = Field(
         default=0.7,
@@ -59,10 +52,7 @@ class BoundingBox(BaseModel):
         }
 
 
-class FaceDetectionResult(BaseModel):
-    """Detection result for a single image."""
-
-    file_path: str = Field(..., description="Path to the input image")
+class EmbeddingOutput(TaskOutput):
     faces: list[BoundingBox] = Field(
         default_factory=list, description="List of detected faces with bounding boxes"
     )

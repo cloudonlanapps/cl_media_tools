@@ -3,7 +3,8 @@
 from .common.compute_module import ComputeModule
 from .common.file_storage import JobStorage
 from .common.job_repository import JobRepository
-from .common.schemas import BaseJobParams, Job
+from .common.schema_job import BaseJobParams, Job
+from .common.schema_job_record import JobRecord, JobRecordUpdate
 from .master import create_master_router
 from .utils.mqtt import (
     MQTTBroadcaster,
@@ -18,6 +19,8 @@ __version__ = "0.1.0"
 __all__ = [
     "Job",
     "BaseJobParams",
+    "JobRecord",
+    "JobRecordUpdate",
     "ComputeModule",
     "JobRepository",
     "JobStorage",

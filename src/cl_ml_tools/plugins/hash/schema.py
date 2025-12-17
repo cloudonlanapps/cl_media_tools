@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from ...common.schemas import BaseJobParams
+from ...common.schema_job import BaseJobParams, TaskOutput
 
 
 class HashParams(BaseJobParams):
@@ -20,3 +20,8 @@ class HashParams(BaseJobParams):
         default="sha512",
         description="Hash algorithm to use (sha512 or md5)",
     )
+
+
+class EmbeddingOutput(TaskOutput):
+    media_type: str | None = None
+    pass

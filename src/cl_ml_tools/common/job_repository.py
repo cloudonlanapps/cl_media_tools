@@ -19,7 +19,7 @@ class JobRepository(Protocol):
         job: JobRecord,
         created_by: str | None = None,
         priority: int | None = None,
-    ) -> str:
+    ) -> bool:
         """Save job to database.
 
         Returns:

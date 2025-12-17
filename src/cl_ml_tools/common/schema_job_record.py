@@ -30,3 +30,8 @@ class JobRecordUpdate(BaseModel):
     error_message: str | None = None
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
+class JobCreatedResponse(BaseModel):
+    job_id: str
+    status: str
