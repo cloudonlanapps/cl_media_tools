@@ -8,16 +8,10 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from ...common.file_storage import JobStorage
 from ...common.job_repository import JobRepository
-from ...common.schemas import Job
 
 
 class UserLike(Protocol):
     id: str | None
-
-
-class JobCreatedResponse(TypedDict):
-    job_id: str
-    status: Literal["queued"]
 
 
 def create_router(

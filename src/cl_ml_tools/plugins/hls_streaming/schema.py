@@ -44,7 +44,7 @@ class HLSStreamingParams(BaseJobParams):
         return v
 
 
-class EmbeddingOutput(TaskOutput):
+class HLSStreamingOutput(TaskOutput):
     master_playlist: str = Field(description="Path to master M3U8 playlist")
     variants_generated: int = Field(description="Number of variants created")
     total_segments: int = Field(description="Total TS segments across all variants")

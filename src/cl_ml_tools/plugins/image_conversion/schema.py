@@ -18,5 +18,5 @@ class ImageConversionParams(BaseJobParams):
     )
 
 
-class EmbeddingOutput(TaskOutput):
+class ImageConversionOutput(TaskOutput):
     pass

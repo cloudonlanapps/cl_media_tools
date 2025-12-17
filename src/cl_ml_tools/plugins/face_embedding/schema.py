@@ -14,7 +14,7 @@ class FaceEmbeddingParams(BaseJobParams):
     )
 
 
-class EmbeddingOutput(TaskOutput):
+class FaceEmbeddingOutput(TaskOutput):
     normalized: bool = Field(..., description="Whether the embedding is L2-normalized")
     embedding_dim: int = Field(..., description="Embedding dimensionality (128 or 512)")
     quality_score: float | None = Field(

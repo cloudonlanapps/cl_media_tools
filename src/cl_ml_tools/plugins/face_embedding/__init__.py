@@ -1,6 +1,6 @@
 """Face embedding plugin using ONNX models."""
 
-from .schema import FaceEmbedding, FaceEmbeddingParams, FaceEmbeddingResult
+from .schema import FaceEmbeddingOutput, FaceEmbeddingParams
 from .task import FaceEmbeddingTask
 
-__all__ = ["FaceEmbeddingTask", "FaceEmbeddingParams", "FaceEmbeddingResult", "FaceEmbedding"]
+__all__ = ["FaceEmbeddingTask", "FaceEmbeddingParams", "FaceEmbeddingOutput"]

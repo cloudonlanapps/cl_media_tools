@@ -22,6 +22,6 @@ class HashParams(BaseJobParams):
     )
 
 
-class EmbeddingOutput(TaskOutput):
+class HashOutput(TaskOutput):
     media_type: str | None = None
     pass

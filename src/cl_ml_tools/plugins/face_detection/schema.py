@@ -52,7 +52,7 @@ class BoundingBox(BaseModel):
         }
 
 
-class EmbeddingOutput(TaskOutput):
+class FaceDetectionOutput(TaskOutput):
     faces: list[BoundingBox] = Field(
         default_factory=list, description="List of detected faces with bounding boxes"
     )
