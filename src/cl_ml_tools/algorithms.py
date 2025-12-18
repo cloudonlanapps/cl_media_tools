@@ -62,7 +62,7 @@ from .plugins.dino_embedding.algo.dino_embedder import (
 
 # EXIF
 from .plugins.exif.algo.exif_tool_wrapper import (
-    ExifToolWrapper,
+    MetadataExtractor,
 )
 
 # Face Detection
@@ -96,10 +96,12 @@ from .plugins.hls_streaming.algo.hls_stream_generator import (
     HLSVariant,
 )
 from .plugins.hls_streaming.algo.hls_validator import (
-    validate_hls_directory,
+    HLSValidator,
+    ValidationResult,
+    validate_hls_output,
 )
 from .plugins.image_conversion.algo.image_convert import (
-    convert_image,
+    image_convert,
 )
 from .plugins.media_thumbnail.algo.image_thumbnail import (
     image_thumbnail,
@@ -122,14 +124,14 @@ __all__ = [
     # Image Processing
     "image_thumbnail",
     "video_thumbnail",
-    "convert_image",
+    "image_convert",
     # Hashing
     "get_md5_hexdigest",
     "sha512hash_image",
     "sha512hash_video2",
     "sha512hash_generic",
     # EXIF
-    "ExifToolWrapper",
+    "MetadataExtractor",
     # Face Analysis
     "FaceDetector",
     "FaceDetection",
@@ -140,7 +142,9 @@ __all__ = [
     # HLS Streaming
     "HLSStreamGenerator",
     "HLSVariant",
-    "validate_hls_directory",
+    "validate_hls_output",
+    "HLSValidator",
+    "ValidationResult",
     # Utilities
     "MediaType",
     "determine_mime",
