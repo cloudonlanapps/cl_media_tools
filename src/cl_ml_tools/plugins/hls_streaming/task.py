@@ -28,9 +28,9 @@ class HLSStreamingTask(ComputeModule[HLSStreamingParams, HLSStreamingOutput]):
         storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
     ) -> HLSStreamingOutput:
-        input_path = Path(params.input_path)
+        input_path = storage.resolve_path(job_id, params.input_path)
         if not input_path.exists():
-            raise FileNotFoundError("Input file not found: " + params.input_path)
+            raise FileNotFoundError("Input file not found: " + str(input_path))
 
         output_dir = Path(
             storage.allocate_path(

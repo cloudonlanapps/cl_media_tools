@@ -43,3 +43,4 @@ class JobRecordUpdate(BaseModel):
 class JobCreatedResponse(BaseModel):
     job_id: str
     status: str
+    task_type: str

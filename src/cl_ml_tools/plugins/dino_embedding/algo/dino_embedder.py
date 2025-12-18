@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Model configuration
 MODEL_URL: Final[str] = (
-    "https://huggingface.co/RoundtTble/dinov2_vits14_onnx/resolve/main/model.onnx"
+    "https://huggingface.co/sefaburak/dinov2-small-onnx/resolve/main/dinov2_vits14.onnx"
 )
 MODEL_FILENAME: Final[str] = "dinov2_vits14.onnx"
 MODEL_SHA256: Final[str | None] = None  # TODO: Add SHA256 hash for verification

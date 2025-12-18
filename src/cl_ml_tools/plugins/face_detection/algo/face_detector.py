@@ -5,6 +5,7 @@ Model File: MediaPipeFaceLandmarkDetector.onnx (2.45 MB)
 """
 
 import logging
+import zipfile
 from pathlib import Path
 from typing import TypedDict
 
@@ -20,9 +21,10 @@ logger = logging.getLogger(__name__)
 # Model configuration
 MODEL_URL = (
     "https://huggingface.co/qualcomm/MediaPipe-Face-Detection/"
-    "resolve/main/MediaPipeFaceLandmarkDetector.onnx"
+    "resolve/main/MediaPipe-Face-Detection_FaceDetector_float.onnx.zip"
 )
-MODEL_FILENAME = "mediapipe_face_detection.onnx"
+MODEL_ZIP_FILENAME = "mediapipe_face_detector.onnx.zip"
+MODEL_FILENAME = "mediapipe_face_detector.onnx"
 MODEL_SHA256: str | None = None  # TODO: Add SHA256 hash for verification
 
 # Expected input shape for MediaPipe Face Detection
@@ -48,11 +50,28 @@ class FaceDetector:
         if model_path is None:
             downloader = get_model_downloader()
             logger.info("Downloading face detection model from %s", MODEL_URL)
-            model_path = downloader.download(
+            zip_path = downloader.download(
                 url=MODEL_URL,
-                filename=MODEL_FILENAME,
+                filename=MODEL_ZIP_FILENAME,
                 expected_sha256=MODEL_SHA256,
             )
+
+            # Extract ONNX file from zip
+            extract_dir = zip_path.parent
+            model_path = extract_dir / MODEL_FILENAME
+
+            if not model_path.exists():
+                logger.info("Extracting ONNX model from zip archive")
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    # Extract all files (should contain the ONNX model)
+                    zip_ref.extractall(extract_dir)
+                    # The zip should contain a .onnx file, rename it to our expected filename
+                    onnx_files = list(extract_dir.glob("*.onnx"))
+                    if onnx_files:
+                        # Rename the extracted onnx file to our standard name
+                        onnx_files[0].rename(model_path)
+                    else:
+                        raise FileNotFoundError(f"No ONNX file found in zip archive: {zip_path}")
         else:
             model_path = Path(model_path)
             if not model_path.exists():

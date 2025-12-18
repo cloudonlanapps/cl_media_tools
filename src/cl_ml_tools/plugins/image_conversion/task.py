@@ -26,6 +26,7 @@ class ImageConversionTask(ComputeModule[ImageConversionParams, ImageConversionOu
         storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
     ) -> ImageConversionOutput:
+        input_path = storage.resolve_path(job_id, params.input_path)
         output_path = storage.allocate_path(
             job_id=job_id,
             relative_path=params.output_path,
@@ -33,7 +34,7 @@ class ImageConversionTask(ComputeModule[ImageConversionParams, ImageConversionOu
 
         try:
             _ = image_convert(
-                input_path=params.input_path,
+                input_path=str(input_path),
                 output_path=output_path,
                 format=params.format,
                 quality=params.quality,

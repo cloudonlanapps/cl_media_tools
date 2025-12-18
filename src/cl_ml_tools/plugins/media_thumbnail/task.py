@@ -30,9 +30,9 @@ class MediaThumbnailTask(ComputeModule[MediaThumbnailParams, MediaThumbnailOutpu
         storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
     ) -> MediaThumbnailOutput:
-        input_path = Path(params.input_path)
+        input_path = storage.resolve_path(job_id, params.input_path)
         if not input_path.exists():
-            raise FileNotFoundError("Input file not found: " + params.input_path)
+            raise FileNotFoundError("Input file not found: " + str(input_path))
 
         try:
             with input_path.open("rb") as f:
@@ -55,7 +55,7 @@ class MediaThumbnailTask(ComputeModule[MediaThumbnailParams, MediaThumbnailOutpu
 
         if media_type == MediaType.IMAGE:
             _ = image_thumbnail(
-                input_path=params.input_path,
+                input_path=str(input_path),
                 output_path=output_path,
                 width=params.width,
                 height=params.height,

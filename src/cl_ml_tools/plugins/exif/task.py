@@ -2,6 +2,7 @@
 
 import json
 import logging
+from pathlib import Path
 from typing import Callable, override
 
 from ...common.compute_module import ComputeModule
@@ -48,14 +49,16 @@ class ExifTask(ComputeModule[ExifMetadataParams, ExifMetadataOutput]):
         if not self._extractor:
             raise RuntimeError("ExifTool is not initialized")
 
+        input_path = str(storage.resolve_path(job_id, params.input_path))
+
         if params.tags:
             raw_metadata = self._extractor.extract_metadata(
-                params.input_path,
+                input_path,
                 tags=params.tags,
             )
         else:
             raw_metadata = self._extractor.extract_metadata_all(
-                params.input_path,
+                input_path,
             )
 
         if raw_metadata:
@@ -68,6 +71,9 @@ class ExifTask(ComputeModule[ExifMetadataParams, ExifMetadataOutput]):
             job_id=job_id,
             relative_path=params.output_path,
         )
+
+        # Ensure parent directory exists
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
 
         with open(path, "w", encoding="utf-8") as f:
             json.dump(metadata.model_dump(), f, indent=2)

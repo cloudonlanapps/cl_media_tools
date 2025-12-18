@@ -21,7 +21,7 @@ from ....utils.model_downloader import get_model_downloader
 logger = logging.getLogger(__name__)
 
 # Model configuration
-MODEL_URL = "https://huggingface.co/garavv/arcface-onnx/resolve/main/arcface.onnx"
+MODEL_URL = "https://huggingface.co/onnx-community/arcface-onnx/resolve/main/arcface.onnx"
 MODEL_FILENAME = "arcface_face_embedding.onnx"
 MODEL_SHA256 = None  # TODO: Add SHA256 hash for verification
 

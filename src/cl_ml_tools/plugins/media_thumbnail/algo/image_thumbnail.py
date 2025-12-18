@@ -35,29 +35,36 @@ def image_thumbnail(
     input_path = Path(input_path)
     output_path = Path(output_path)
 
-    # Default to 256 if both are None
-    if width is None and height is None:
-        w = h = 256
-    elif width is None:
-        w = height  # type: ignore[assignment]
-        h = height  # type: ignore[assignment]
-    elif height is None:
-        w = width
-        h = width
-    else:
-        w = width
-        h = height
-
     with Image.open(input_path) as img:
-        if maintain_aspect_ratio:
-            img.thumbnail((w, h), Image.Resampling.LANCZOS)
-            thumbnail = img
-        else:
-            thumbnail = img.resize(
-                (w, h),
-                Image.Resampling.LANCZOS,
-            )
+        original_width, original_height = img.size
 
+        # Calculate target dimensions
+        if width is None and height is None:
+            # Default to 256x256
+            w = h = 256
+        elif width is None:
+            # Height specified, calculate width to maintain aspect ratio
+            h = height  # type: ignore[assignment]
+            if maintain_aspect_ratio:
+                aspect_ratio = original_width / original_height
+                w = int(h * aspect_ratio)
+            else:
+                w = h
+        elif height is None:
+            # Width specified, calculate height to maintain aspect ratio
+            w = width
+            if maintain_aspect_ratio:
+                aspect_ratio = original_height / original_width
+                h = int(w * aspect_ratio)
+            else:
+                h = w
+        else:
+            # Both specified
+            w = width
+            h = height
+
+        # Resize the image
+        thumbnail = img.resize((w, h), Image.Resampling.LANCZOS)
         thumbnail.save(output_path)
 
     return str(output_path)

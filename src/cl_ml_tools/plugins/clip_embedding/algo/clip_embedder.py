@@ -13,8 +13,8 @@ from ....utils.model_downloader import get_model_downloader
 
 logger = logging.getLogger(__name__)
 
-MODEL_URL = "https://huggingface.co/apple/MobileCLIP-S2-onnx/resolve/main/image_encoder.onnx"
-MODEL_FILENAME = "mobileclip_s2_image_encoder.onnx"
+MODEL_URL = "https://huggingface.co/Xenova/mobileclip_blt/resolve/main/onnx/vision_model.onnx"
+MODEL_FILENAME = "mobileclip_blt_vision_model.onnx"
 MODEL_SHA256: str | None = None
 
 INPUT_SIZE = (256, 256)

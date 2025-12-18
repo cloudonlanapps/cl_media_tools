@@ -1,13 +1,11 @@
 """EXIF metadata extraction parameters and output schemas."""
 
-from typing import TypeAlias
-
 from pydantic import Field
 
 from ...common.schema_job import BaseJobParams, TaskOutput
 
-JSONPrimitive: TypeAlias = str | int | float | bool | None
-JSONValue: TypeAlias = JSONPrimitive | list["JSONValue"] | dict[str, "JSONValue"]
+# Use PEP 695 recursive type alias
+type JSONValue = str | int | float | bool | None | list[JSONValue] | dict[str, JSONValue]
 
 
 def _as_str(value: JSONValue) -> str | None:

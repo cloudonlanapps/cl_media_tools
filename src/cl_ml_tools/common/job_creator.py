@@ -53,4 +53,4 @@ async def create_job_from_upload(
     if not ok:
         raise ValueError("Failed to create job")
 
-    return JobCreatedResponse(job_id=job_id, status=job.status)
+    return JobCreatedResponse(job_id=job_id, status=job.status, task_type=task_type)
