@@ -96,7 +96,7 @@ class FaceEmbedder:
         return embedding
 
     def compute_quality_score(self, image: Image.Image) -> float:
-        from scipy import signal  # type: ignore[import-not-found]
+        from scipy import signal
 
         img_gray = image.convert("L")
         img_array: NDArray[np.float32] = np.asarray(img_gray, dtype=np.float32)
