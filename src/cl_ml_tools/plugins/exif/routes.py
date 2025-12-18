@@ -44,7 +44,7 @@ def create_router(
             output_type=ExifMetadataOutput,
             params_factory=lambda path: ExifMetadataParams(
                 input_path=path,
-                output_path="output/clip_embedding.nb",
+                output_path="output/exif_metadata.json",
                 tags=tags_list,
             ),
         )

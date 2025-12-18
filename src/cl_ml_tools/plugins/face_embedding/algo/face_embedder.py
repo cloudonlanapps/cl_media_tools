@@ -96,6 +96,8 @@ class FaceEmbedder:
         return embedding
 
     def compute_quality_score(self, image: Image.Image) -> float:
+        from scipy import signal  # type: ignore[import-not-found]
+
         img_gray = image.convert("L")
         img_array: NDArray[np.float32] = np.asarray(img_gray, dtype=np.float32)
 
@@ -104,13 +106,8 @@ class FaceEmbedder:
             dtype=np.float32,
         )
 
-        padded = np.pad(img_array, 1, mode="reflect")
-        lap_img = np.empty_like(img_array)
-
-        for y in range(img_array.shape[0]):
-            for x in range(img_array.shape[1]):
-                region = padded[y : y + 3, x : x + 3]
-                lap_img[y, x] = float(np.sum(region * kernel))
+        # Use vectorized convolution instead of nested loops
+        lap_img = signal.convolve2d(img_array, kernel, mode="same", boundary="symm")
 
         variance = float(np.var(lap_img))
         quality = min(variance / 100.0, 1.0)
@@ -127,26 +124,25 @@ class FaceEmbedder:
         if not image_path.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        image = Image.open(image_path)
+        with Image.open(image_path) as image:
+            input_array = self.preprocess(image)
 
-        input_array = self.preprocess(image)
+            raw_output = cast(
+                NDArray[np.float32],
+                self.session.run(
+                    [self.output_name],
+                    {self.input_name: input_array},
+                )[0],
+            )
 
-        raw_output = cast(
-            NDArray[np.float32],
-            self.session.run(
-                [self.output_name],
-                {self.input_name: input_array},
-            )[0],
-        )
+            embedding = self.postprocess(raw_output, normalize=normalize)
 
-        embedding = self.postprocess(raw_output, normalize=normalize)
-
-        quality_score: float | None = None
-        if compute_quality:
-            try:
-                quality_score = self.compute_quality_score(image)
-            except Exception as exc:
-                logger.warning(f"Failed to compute quality score: {exc}")
+            quality_score: float | None = None
+            if compute_quality:
+                try:
+                    quality_score = self.compute_quality_score(image)
+                except (ValueError, RuntimeError, OSError) as exc:
+                    logger.warning(f"Failed to compute quality score: {exc}")
 
         logger.info(
             f"Generated embedding for {image_path}: dim={embedding.shape[0]}, quality={quality_score}"

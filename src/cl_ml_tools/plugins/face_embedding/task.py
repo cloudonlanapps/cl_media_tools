@@ -32,7 +32,7 @@ class FaceEmbeddingTask(ComputeModule[FaceEmbeddingParams, FaceEmbeddingOutput])
             try:
                 self._embedder = FaceEmbedder()
                 logger.info("Face embedder initialized successfully")
-            except Exception as exc:  # noqa: BLE001
+            except (FileNotFoundError, RuntimeError, ImportError, OSError) as exc:
                 logger.error("Face embedder initialization failed", exc_info=exc)
                 raise RuntimeError(
                     "Failed to initialize face embedder. "

@@ -33,7 +33,7 @@ class FaceDetectionTask(ComputeModule[FaceDetectionParams, FaceDetectionOutput])
             try:
                 self._detector = FaceDetector()
                 logger.info("Face detector initialized successfully")
-            except Exception as exc:  # noqa: BLE001
+            except (FileNotFoundError, RuntimeError, ImportError, OSError) as exc:
                 logger.error("Face detector initialization failed", exc_info=exc)
                 raise RuntimeError(
                     "Failed to initialize face detector. "

@@ -50,7 +50,7 @@ def create_router(
             output_type=FaceDetectionOutput,
             params_factory=lambda path: FaceDetectionParams(
                 input_path=path,
-                output_path="output/clip_embedding.json",
+                output_path="output/face_detection.json",
                 confidence_threshold=confidence_threshold,
                 nms_threshold=nms_threshold,
             ),

@@ -40,9 +40,17 @@ class MediaThumbnailTask(ComputeModule[MediaThumbnailParams, MediaThumbnailOutpu
         except ImportError as exc:
             raise RuntimeError("Required library not installed: " + str(exc)) from exc
 
-        output_path = storage.allocate_path(
-            job_id=job_id,
-            relative_path=params.output_path,
+        # Validate dimensions
+        if params.width is not None and params.width <= 0:
+            raise ValueError(f"Width must be positive, got {params.width}")
+        if params.height is not None and params.height <= 0:
+            raise ValueError(f"Height must be positive, got {params.height}")
+
+        output_path = Path(
+            storage.allocate_path(
+                job_id=job_id,
+                relative_path=params.output_path,
+            )
         )
 
         if media_type == MediaType.IMAGE:

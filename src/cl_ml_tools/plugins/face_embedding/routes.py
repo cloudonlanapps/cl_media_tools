@@ -41,7 +41,7 @@ def create_router(
             output_type=FaceEmbeddingOutput,
             params_factory=lambda path: FaceEmbeddingParams(
                 input_path=path,
-                output_path="output/clip_embedding.nb",
+                output_path="output/face_embedding.nb",
                 normalize=normalize,
             ),
         )

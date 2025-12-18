@@ -97,8 +97,8 @@ class ClipEmbedder:
         if not image_path.exists():
             raise FileNotFoundError(image_path)
 
-        image = Image.open(image_path)
-        input_array = self.preprocess(image)
+        with Image.open(image_path) as image:
+            input_array = self.preprocess(image)
 
         output = cast(
             NDArray[np.float32],

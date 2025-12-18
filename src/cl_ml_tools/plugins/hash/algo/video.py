@@ -66,7 +66,7 @@ def sha512hash_video2(video_stream: BytesIO) -> bytes:
         )
     except subprocess.TimeoutExpired as exc:
         raise UnsupportedMediaType("ffprobe command timed out.") from exc
-    except Exception as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         raise UnsupportedMediaType(f"An error occurred while running ffprobe: {exc}") from exc
 
     if process.returncode != 0:
@@ -88,19 +88,36 @@ def sha512hash_video2(video_stream: BytesIO) -> bytes:
     cumulative_hash = hashlib.sha512()
 
     try:
-        for _, row in enumerate(reader):
+        for row in reader:
+            if len(row) != 3:
+                raise UnsupportedMediaType(f"Invalid CSV row format: expected 3 columns, got {len(row)}")
+
             offset_str, size_str, frame_type = row
-            offset = int(offset_str)
-            size = int(size_str)
+
+            try:
+                offset = int(offset_str)
+                size = int(size_str)
+            except ValueError as exc:
+                raise UnsupportedMediaType(f"Invalid offset or size in CSV: {exc}") from exc
+
+            # Validate bounds
+            if offset < 0 or size <= 0 or offset + size > video_size:
+                raise UnsupportedMediaType(
+                    f"Frame data out of bounds: offset={offset}, size={size}, video_size={video_size}"
+                )
 
             if frame_type == "I":
                 _ = video_stream.seek(offset)
                 frame_data = video_stream.read(size)
+                if len(frame_data) != size:
+                    raise UnsupportedMediaType(
+                        f"Failed to read complete frame: expected {size} bytes, got {len(frame_data)}"
+                    )
                 cumulative_hash.update(frame_data)
 
     except csv.Error as exc:
         raise UnsupportedMediaType(f"Error parsing CSV data: {exc}") from exc
-    except (IOError, ValueError) as exc:
+    except IOError as exc:
         raise UnsupportedMediaType(f"Error processing video data: {exc}") from exc
 
     return cumulative_hash.digest()

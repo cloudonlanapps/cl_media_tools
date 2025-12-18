@@ -48,6 +48,9 @@ def image_convert(
         if fmt == "png":
             save_kwargs["optimize"] = True
 
+        # Ensure parent directory exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
         img.save(
             output_path,
             format=_get_pil_format(fmt),

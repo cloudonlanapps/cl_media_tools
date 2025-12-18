@@ -36,9 +36,17 @@ def image_thumbnail(
     output_path = Path(output_path)
 
     # Default to 256 if both are None
-    size: int = width or height or 256
-    w: int = width if width is not None else size
-    h: int = height if height is not None else size
+    if width is None and height is None:
+        w = h = 256
+    elif width is None:
+        w = height  # type: ignore[assignment]
+        h = height  # type: ignore[assignment]
+    elif height is None:
+        w = width
+        h = width
+    else:
+        w = width
+        h = height
 
     with Image.open(input_path) as img:
         if maintain_aspect_ratio:

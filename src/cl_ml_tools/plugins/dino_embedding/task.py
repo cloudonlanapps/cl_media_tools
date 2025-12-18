@@ -32,7 +32,7 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams, DinoEmbeddingOutput])
             try:
                 self._embedder = DinoEmbedder()
                 logger.info("DINOv2 embedder initialized successfully")
-            except Exception as exc:  # noqa: BLE001
+            except (FileNotFoundError, RuntimeError, ImportError, OSError) as exc:
                 logger.error("Failed to initialize DINOv2 embedder", exc_info=exc)
                 raise RuntimeError(
                     "Failed to initialize DINOv2 embedder. "

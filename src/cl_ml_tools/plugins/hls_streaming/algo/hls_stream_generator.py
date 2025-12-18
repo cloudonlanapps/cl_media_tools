@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import re
@@ -8,6 +9,8 @@ from typing import cast, override
 
 import m3u8
 from m3u8.model import MediaList, Playlist, StreamInfo
+
+logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
 # Exceptions
@@ -171,13 +174,13 @@ class HLSStreamGenerator:
     def getVariants(self) -> list[HLSVariant]:
         return self.variants
 
-    def create(self, requested_variants: list[HLSVariant]):
+    def create(self, requested_variants: list[HLSVariant]) -> None:
         command = self.get_ffmpeg_command(
             requested_variants=requested_variants, master_pl_name="adaptive.m3u8"
         )
         self.run_command(command)
 
-    def update(self, requested_variants: list[HLSVariant]):
+    def update(self, requested_variants: list[HLSVariant]) -> None:
         temp_master_pl_name = f"{''.join(random.choices(string.ascii_letters, k=10))}.m3u8"
         command = self.get_ffmpeg_command(
             requested_variants=requested_variants, master_pl_name=temp_master_pl_name
@@ -207,8 +210,6 @@ class HLSStreamGenerator:
                 raise InternalServerError(f"ffmpeg didn't create master_pl; {temp_master_pl_name}")
             if os.path.exists(path):
                 os.remove(path)
-        except Exception as e:
-            raise e
         finally:
             if os.path.exists(path):
                 os.remove(path)
@@ -296,37 +297,36 @@ class HLSStreamGenerator:
             )
 
     def addVariants(self, requested_variants: list[HLSVariant]):
-        print("addVariants")
-        print(
+        logger.info("addVariants")
+        logger.info(
             f"\tRequest to add {len(requested_variants)} variants. {','.join([item.uri() for item in requested_variants])}"
         )
         if HLSVariant() in requested_variants:
-            raise InternalServerError("orignal should be generated using addOriginal")
+            raise InternalServerError("original should be generated using addOriginal")
 
         if len(self.variants) == 0:
             if len(requested_variants) > 0:
-                print(
+                logger.info(
                     f"\tcreating stream with {len(requested_variants)} variants. {','.join([item.uri() for item in requested_variants])}"
                 )
             self.create(requested_variants=requested_variants)
         else:
-            print(
+            logger.info(
                 f"\tStream with {len(self.variants)} variants found. {','.join([item.uri() for item in self.variants])}"
             )
             available_variants = self.variants
             found_variants = [item for item in requested_variants if item in available_variants]
             if len(found_variants) > 0:
-                print(
+                logger.info(
                     f"\t{len(found_variants)} variant(s) is/are already present. {','.join([item.uri() for item in found_variants])}"
                 )
             missing_variants = [
                 item for item in requested_variants if item not in available_variants
             ]
             if len(missing_variants) > 0:
-                if len(missing_variants) > 0:
-                    print(
-                        f"updating stream with {len(missing_variants)} variants. {','.join([item.uri() for item in missing_variants])}"
-                    )
+                logger.info(
+                    f"updating stream with {len(missing_variants)} variants. {','.join([item.uri() for item in missing_variants])}"
+                )
                 self.update(missing_variants)
 
         # validate generated stream - may not be required if we check when creating HLSStreamGenerator
@@ -359,14 +359,12 @@ class HLSStreamGenerator:
             f"{self.output_dir}/adaptive-orig-%03d.ts",
             f"{self.output_dir}/adaptive-orig.m3u8",
         ]
-        print(" ".join(command))
+        logger.debug(" ".join(command))
         self.run_command(command)
 
-        pass
-
     def addOriginal(self):
-        print("addOriginal")
-        print("\tReqest to convert the original stream to hls format without reencoding")
+        logger.info("addOriginal")
+        logger.info("\tRequest to convert the original stream to hls format without reencoding")
         # check if original is present
         variant = HLSVariant()
         valid = variant.check(dir=self.output_dir)
@@ -378,32 +376,5 @@ class HLSStreamGenerator:
                     f"the stream generated {variant.uri()} is either invalid or partial or corrupted"
                 )
             return True
-        print(f"\toriginal stream in hls format is already present. {variant.uri()}")
+        logger.info(f"\toriginal stream in hls format is already present. {variant.uri()}")
         return True
-
-
-# ─────────────────────────────────────────────
-# Example usage
-# ─────────────────────────────────────────────
-if __name__ == "__main__":
-    generator = HLSStreamGenerator(
-        input_file="/disks/data/git/github/asarangaram/dash_experiment/VID-20230308-WA0129.mp4",
-        output_dir="/disks/data/git/github/asarangaram/dash_experiment/random_folder",
-    )
-
-    res = generator.addVariants([HLSVariant(resolution=720, bitrate=900)])
-    if not res:
-        print("failed")
-    res = generator.addVariants([HLSVariant(resolution=480, bitrate=400)])
-    if not res:
-        print("failed")
-
-    res = generator.addVariants([HLSVariant(resolution=240, bitrate=200)])
-    if not res:
-        print("failed")
-
-    res = generator.addOriginal()
-    if not res:
-        print("failed")
-
-    print("done")

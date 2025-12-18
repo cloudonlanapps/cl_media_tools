@@ -110,9 +110,8 @@ class DinoEmbedder:
         if not image_path.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        image = Image.open(image_path)
-
-        input_array: NDArray[np.float32] = self.preprocess(image)
+        with Image.open(image_path) as image:
+            input_array: NDArray[np.float32] = self.preprocess(image)
 
         outputs = self.session.run([self.output_name], {self.input_name: input_array})
         raw_embedding = cast(NDArray[np.float32], outputs[0])

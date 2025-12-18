@@ -1,5 +1,8 @@
+import logging
 import os
 import subprocess
+
+logger = logging.getLogger(__name__)
 
 
 class NotFound(Exception):
@@ -99,7 +102,7 @@ class FFMPEGCommands:
             f"{output_dir}/adaptive-%v.m3u8",
         ]
 
-        print(" ".join(command))
+        logger.debug(" ".join(command))
 
         try:
             process = subprocess.run(
@@ -109,7 +112,7 @@ class FFMPEGCommands:
                 text=True,
                 check=False,
             )
-        except Exception as exc:
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
             raise InternalServerError(f"Failed to start ffmpeg: {exc}") from exc
 
         if process.returncode != 0:
@@ -134,10 +137,3 @@ class FFMPEGCommands:
                     ]
                 )
             )
-
-
-if __name__ == "__main__":
-    FFMPEGCommands().to_hls(
-        input_file="/disks/data/git/github/asarangaram/dash_experiment/VID_20240206_095544.mp4",
-        output_dir="/disks/data/git/github/asarangaram/dash_experiment/VID_20240206_095544",
-    )

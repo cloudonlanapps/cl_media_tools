@@ -32,7 +32,7 @@ class ClipEmbeddingTask(ComputeModule[ClipEmbeddingParams, ClipEmbeddingOutput])
             try:
                 self._embedder = ClipEmbedder()
                 logger.info("MobileCLIP embedder initialized successfully")
-            except Exception as exc:  # noqa: BLE001
+            except (FileNotFoundError, RuntimeError, ImportError, OSError) as exc:
                 logger.error("Failed to initialize MobileCLIP embedder", exc_info=exc)
                 raise RuntimeError(
                     "Failed to initialize MobileCLIP embedder. "
