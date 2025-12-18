@@ -1,4 +1,4 @@
-from typing import Callable, Protocol
+from typing import Callable
 from uuid import uuid4
 
 from fastapi import UploadFile
@@ -9,8 +9,7 @@ from .schema_job import Job, P, Q
 from .schema_job_record import JobCreatedResponse, JobStatus
 
 
-class UserLike(Protocol):
-    id: str | None
+from cl_ml_tools.common.user import UserLike
 
 
 async def create_job_from_upload(

@@ -1,6 +1,6 @@
 """MobileCLIP embedding route factory."""
 
-from typing import Annotated, Callable, Protocol
+from typing import Annotated, Callable
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
@@ -11,8 +11,7 @@ from ...common.schema_job_record import JobCreatedResponse
 from .schema import ClipEmbeddingOutput, ClipEmbeddingParams
 
 
-class UserLike(Protocol):
-    id: str | None
+from cl_ml_tools.common.user import UserLike
 
 
 def create_router(

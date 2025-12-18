@@ -1,19 +1,13 @@
 """Master module - dynamic route aggregator for FastAPI."""
 
 from importlib.metadata import entry_points
-from typing import Callable, Protocol, cast
+from typing import Callable, cast
 
 from fastapi import APIRouter
 
 from .common.file_storage import JobStorage
 from .common.job_repository import JobRepository
-
-
-class UserLike(Protocol):
-    """Protocol for user objects returned by authentication."""
-
-    id: str | None
-
+from .common.user import UserLike
 
 # Type alias for route factory functions loaded from entry points
 RouteFactory = Callable[

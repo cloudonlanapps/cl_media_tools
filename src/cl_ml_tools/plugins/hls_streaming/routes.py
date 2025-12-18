@@ -1,7 +1,7 @@
 """FastAPI routes for HLS streaming conversion plugin."""
 
 import json
-from typing import Annotated, Callable, Protocol, TypedDict, cast
+from typing import Annotated, Callable, TypedDict, cast
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
@@ -9,13 +9,8 @@ from ...common.file_storage import JobStorage
 from ...common.job_creator import create_job_from_upload
 from ...common.job_repository import JobRepository
 from ...common.schema_job_record import JobCreatedResponse
+from ...common.user import UserLike
 from .schema import HLSStreamingOutput, HLSStreamingParams, VariantConfig
-
-
-class UserLike(Protocol):
-    """Protocol for user objects returned by authentication."""
-
-    id: str | None
 
 
 class VariantDict(TypedDict):
