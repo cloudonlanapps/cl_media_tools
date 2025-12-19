@@ -103,10 +103,9 @@ def test_hls_generator_add_variants_errors():
         gen.addVariants([HLSVariant()])
 
     # 2. Validation failure after generation
-    with patch.object(gen, "create"):
-        with patch.object(HLSVariant, "check", return_value=False):
-            with pytest.raises(InternalServerError, match="is either invalid or partial or corrupted"):
-                gen.addVariants([HLSVariant(720, 3500)])
+    with patch.object(gen, "create"), patch.object(HLSVariant, "check", return_value=False):
+        with pytest.raises(InternalServerError, match="is either invalid or partial or corrupted"):
+            gen.addVariants([HLSVariant(720, 3500)])
 
 
 def test_hls_generator_add_original_validation_fail():
@@ -135,7 +134,7 @@ def test_hls_validator_missing_master():
 
 def test_hls_validator_missing_variant():
     """Test HLSValidator handles missing variant playlist."""
-    with patch("os.path.exists", side_effect=lambda p: True if "master.m3u8" in p else False):
+    with patch("os.path.exists", side_effect=lambda p: "master.m3u8" in p):
         mock_master = MagicMock()
         mock_master.playlists = [MagicMock(uri="variant.m3u8")]
         with patch("m3u8.load", return_value=mock_master):
@@ -189,5 +188,6 @@ def test_validate_hls_output_failure():
         mock_val.return_value = mock_result
 
         err = validate_hls_output("master.m3u8")
+        assert err is not None
         assert "HLS validation failed" in err
         assert "Some error" in err

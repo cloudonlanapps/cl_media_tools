@@ -4,9 +4,8 @@ Tests schema validation, embedding generation with quality scores, normalization
 Requires ML models downloaded.
 """
 
-import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pytest
@@ -15,9 +14,10 @@ if TYPE_CHECKING:
     from fastapi.testclient import TestClient
 
     from cl_ml_tools import Worker
-    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
+    from cl_ml_tools.common.file_storage import JobStorage
     from cl_ml_tools.common.job_repository import JobRepository
 
+from cl_ml_tools.plugins.face_embedding.algo.face_embedder import FaceEmbedder
 from cl_ml_tools.plugins.face_embedding.schema import (
     FaceEmbeddingOutput,
     FaceEmbeddingParams,
@@ -194,30 +194,27 @@ def test_face_embedding_algo_consistency(sample_image_path: Path):
         embedding1 = result1
         embedding2 = result2
 
-    assert np.allclose(embedding1, embedding2, rtol=1e-5)
+    if embedding1 is not None and embedding2 is not None:
+        assert np.allclose(cast("Any", embedding1), cast("Any", embedding2), rtol=1e-5)
+    else:
+        assert embedding1 is None and embedding2 is None
 
 
 @pytest.mark.requires_models
 def test_face_embedding_algo_different_images(sample_image_path: Path, synthetic_image: Path):
     """Test different images produce different face embeddings."""
-    from cl_ml_tools.plugins.face_embedding.algo.face_embedder import FaceEmbedder
-
     embedder = FaceEmbedder()
 
     result1 = embedder.embed(str(sample_image_path), normalize=True)
     result2 = embedder.embed(str(synthetic_image), normalize=True)
 
-    if isinstance(result1, tuple):
-        embedding1, _ = result1
-        embedding2, _ = result2
-    else:
-        embedding1 = result1
-        embedding2 = result2
+    embedding1, _ = result1
+    embedding2, _ = result2
 
     # May raise exception if no face found - that's ok
     # If both succeed, embeddings should be different
     if embedding1 is not None and embedding2 is not None:
-        assert not np.allclose(embedding1, embedding2, rtol=0.1)
+        assert not np.allclose(cast("Any", embedding1), cast("Any", embedding2), rtol=0.1)
 
 
 @pytest.mark.requires_models
@@ -428,7 +425,7 @@ async def test_face_embedding_full_job_lifecycle_with_quality(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 

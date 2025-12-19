@@ -9,9 +9,8 @@ This module provides:
 
 import hashlib
 import shutil
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, override
+from typing import Any, cast, override
 
 import pytest
 from fastapi.testclient import TestClient
@@ -59,13 +58,12 @@ def pytest_configure(config):
 def pytest_runtest_setup(item):
     """Check dependencies before running tests - FAIL if missing (not skip)."""
     # Check FFmpeg
-    if item.get_closest_marker("requires_ffmpeg"):
-        if not shutil.which("ffmpeg"):
-            pytest.fail(
-                "FFmpeg not installed. "
-                "Install: brew install ffmpeg (macOS) or apt-get install ffmpeg (Linux)\n"
-                "Or exclude with: pytest -m 'not requires_ffmpeg'"
-            )
+    if item.get_closest_marker("requires_ffmpeg") and not shutil.which("ffmpeg"):
+        pytest.fail(
+            "FFmpeg not installed. "
+            "Install: brew install ffmpeg (macOS) or apt-get install ffmpeg (Linux)\n"
+            "Or exclude with: pytest -m 'not requires_ffmpeg'"
+        )
 
     # Check ExifTool
     if item.get_closest_marker("requires_exiftool"):
@@ -117,7 +115,7 @@ def validate_test_media():
 
     # Validate checksums
     errors = []
-    with open(MANIFEST_FILE, "r", encoding="utf-8") as f:
+    with open(MANIFEST_FILE, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -265,7 +263,7 @@ def synthetic_image(tmp_path: Path) -> Path:
 @pytest.fixture
 def job_repository():
     """Provide in-memory job repository for testing."""
-    from typing import Any, Sequence, override
+    from collections.abc import Sequence
 
     from cl_ml_tools.common.job_repository import JobRepository
     from cl_ml_tools.common.schema_job_record import JobRecord, JobRecordUpdate, JobStatus
@@ -293,7 +291,7 @@ def job_repository():
             return job
 
         def list_pending(self, limit: int = 100) -> list[JobRecord]:
-            return [job for job in self._jobs.values() if job.status == JobStatus.QUEUED][:limit]
+            return [job for job in self._jobs.values() if job.status == JobStatus.queued][:limit]
 
         def delete(self, job_id: str) -> bool:
             if job_id in self._jobs:
@@ -326,8 +324,8 @@ def job_repository():
             job = self._jobs[job_id]
             # Convert Pydantic model to dict if needed
             updates_dict: dict[str, Any] = (
-                updates.model_dump(exclude_none=True) if hasattr(updates, "model_dump") else updates
-            )  # pyright: ignore[reportUnknownArgumentType]
+                updates.model_dump(exclude_none=True) if hasattr(updates, "model_dump") else cast("dict[str, Any]", updates)
+            )
             for key, value in updates_dict.items():
                 if hasattr(job, key):
                     setattr(job, key, value)

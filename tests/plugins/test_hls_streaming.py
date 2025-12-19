@@ -4,19 +4,18 @@ Tests schema validation, HLS playlist generation, variant configuration, task ex
 Requires FFmpeg to be installed.
 """
 
-from pathlib import Path
-
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
+
     from cl_ml_tools import Worker
+    from cl_ml_tools.common.file_storage import JobStorage
     from cl_ml_tools.common.job_repository import JobRepository
-    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.hls_streaming.schema import (
     HLSStreamingOutput,
@@ -156,13 +155,16 @@ async def test_hls_streaming_task_run_success(sample_video_path: Path, tmp_path:
     job_id = "test-job-123"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "hls" / Path(relative_path).name
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -190,13 +192,16 @@ async def test_hls_streaming_task_creates_master_playlist(sample_video_path: Pat
     job_id = "test-job-456"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "hls" / Path(relative_path).name
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -219,13 +224,16 @@ async def test_hls_streaming_task_run_file_not_found(tmp_path: Path):
     job_id = "test-job-789"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "hls" / Path(relative_path).name
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -250,13 +258,16 @@ async def test_hls_streaming_task_progress_callback(sample_video_path: Path, tmp
     job_id = "test-job-progress"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "hls" / Path(relative_path).name
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -313,7 +324,7 @@ async def test_hls_streaming_task_audio_only_failure(tmp_path: Path):
         async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
         async def open(self, job_id: str, relative_path: str) -> Any: return None
         def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
-            return tmp_path / relative_path
+            return tmp_path / (relative_path or "")
         def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "hls" / Path(relative_path).name
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -344,13 +355,16 @@ async def test_hls_streaming_task_with_original(sample_video_path: Path, tmp_pat
     job_id = "test-job-original"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "hls" / Path(relative_path).name
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -382,7 +396,7 @@ def test_hls_streaming_route_job_submission(api_client: "TestClient", sample_vid
         response = api_client.post(
             "/jobs/hls_streaming",
             files={"file": ("test.mp4", f, "video/mp4")},
-            data={"priority": 5},
+            data={"priority": "5"},
         )
 
     assert response.status_code == 200
@@ -396,7 +410,6 @@ def test_hls_streaming_route_job_submission(api_client: "TestClient", sample_vid
 @pytest.mark.requires_ffmpeg
 def test_hls_streaming_route_with_custom_variants(api_client: "TestClient", sample_video_path: Path):
     """Test job submission with custom variant configuration."""
-    import json
 
     variants = [
         {"resolution": 720, "bitrate": 3500},
@@ -407,7 +420,7 @@ def test_hls_streaming_route_with_custom_variants(api_client: "TestClient", samp
         response = api_client.post(
             "/jobs/hls_streaming",
             files={"file": ("test.mp4", f, "video/mp4")},
-            data={"variants": json.dumps(variants), "priority": 5},
+            data={"variants": json.dumps(variants), "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -470,7 +483,7 @@ async def test_hls_streaming_full_job_lifecycle_with_original(
         response = api_client.post(
             "/jobs/hls_streaming",
             files={"file": ("test.mp4", f, "video/mp4")},
-            data={"include_original": "true", "priority": 6},
+            data={"include_original": "true", "priority": "6"},
         )
 
     assert response.status_code == 200

@@ -3,18 +3,19 @@
 Tests schema validation, image & video thumbnail generation, aspect ratio handling, task execution, routes, and full job lifecycle.
 """
 
-import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from PIL import Image
+from cl_ml_tools.common.file_storage import SavedJobFile
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
+
     from cl_ml_tools import Worker
+    from cl_ml_tools.common.file_storage import JobStorage
     from cl_ml_tools.common.job_repository import JobRepository
-    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.media_thumbnail.algo.image_thumbnail import (
     image_thumbnail,
@@ -174,9 +175,8 @@ def test_image_thumbnail_algo_larger_than_original(sample_image_path: Path, tmp_
     assert output_path.exists()
 
     # Thumbnail should not exceed original size
-    with Image.open(sample_image_path) as orig:
-        with Image.open(output_path) as thumb:
-            assert thumb.width <= orig.width
+    with Image.open(sample_image_path) as orig, Image.open(output_path) as thumb:
+        assert thumb.width <= orig.width
 
 
 def test_image_thumbnail_algo_file_not_found(tmp_path: Path):
@@ -294,13 +294,18 @@ async def test_media_thumbnail_task_run_success_image(sample_image_path: Path, t
     job_id = "test-job-123"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
+        def create_directory(self, _id: str) -> None: pass
+        def remove(self, _id: str) -> bool: return True
+        async def save(self, _id, _path, _file, **_k) -> SavedJobFile:
+            return SavedJobFile(relative_path=_path, size=0)
+        async def open(self, _id, _path) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "thumbnail.jpg"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -327,11 +332,16 @@ async def test_media_thumbnail_task_run_file_not_found(tmp_path: Path):
     job_id = "test-job-789"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
+        def create_directory(self, _id: str) -> None: pass
+        def remove(self, _id: str) -> bool: return True
+        async def save(self, _id, _path, _file, **_k) -> SavedJobFile:
+            return SavedJobFile(relative_path=_path, size=0)
+        async def open(self, _id, _path) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
-            return str(tmp_path / "output" / "thumbnail.jpg")
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
+            return tmp_path / "output" / "thumbnail.jpg"
 
     storage = MockStorage()
 
@@ -355,13 +365,18 @@ async def test_media_thumbnail_task_progress_callback(sample_image_path: Path, t
     job_id = "test-job-progress"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
+        def create_directory(self, _id: str) -> None: pass
+        def remove(self, _id: str) -> bool: return True
+        async def save(self, _id, _path, _file, **_k) -> SavedJobFile:
+            return SavedJobFile(relative_path=_path, size=0)
+        async def open(self, _id, _path) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "thumbnail.jpg"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 

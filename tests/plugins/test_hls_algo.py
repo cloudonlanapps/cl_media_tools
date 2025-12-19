@@ -1,7 +1,6 @@
 """Unit tests for FFMPEGCommands in hls_streaming plugin."""
 
 from pathlib import Path
-import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,17 +49,17 @@ def test_to_hls_success(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):
     mock_result = MagicMock()
     mock_result.returncode = 0
 
-    with patch("subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
         # In success case, ffmpeg would have created this file
         _ = playlist_file.write_text("#EXTM3U")
 
         ffmpeg_commands.to_hls(str(input_file), str(output_dir))
 
-        args, _ = subprocess.run.call_args # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        command = args[0] # pyright: ignore[reportUnknownVariableType]
-        assert "ffmpeg" in command # pyright: ignore[reportUnknownArgumentType]
-        assert str(input_file) in command # pyright: ignore[reportUnknownArgumentType]
-        assert "adaptive.m3u8" in command # pyright: ignore[reportUnknownArgumentType]
+        args, _ = mock_run.call_args
+        command = args[0]
+        assert "ffmpeg" in command
+        assert str(input_file) in command
+        assert "adaptive.m3u8" in command
 
 
 def test_to_hls_ffmpeg_failure(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):

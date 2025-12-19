@@ -6,7 +6,7 @@ Requires ML models downloaded.
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -15,9 +15,10 @@ from PIL import Image
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
+
     from cl_ml_tools import Worker
-    from cl_ml_tools.common.job_repository import JobRepository
     from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
+    from cl_ml_tools.common.job_repository import JobRepository
 
 from cl_ml_tools.plugins.face_detection.algo.face_detector import FaceDetector
 from cl_ml_tools.plugins.face_detection.schema import (

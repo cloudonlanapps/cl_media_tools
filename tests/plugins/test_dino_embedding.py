@@ -4,18 +4,18 @@ Tests schema validation, 384-dim embedding generation, normalization, task execu
 Requires ML models downloaded.
 """
 
-import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
+
     from cl_ml_tools import Worker
+    from cl_ml_tools.common.file_storage import JobStorage
     from cl_ml_tools.common.job_repository import JobRepository
-    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.dino_embedding.schema import (
     DinoEmbeddingOutput,
@@ -221,7 +221,7 @@ def test_dino_embedding_route_job_submission(api_client: "TestClient", sample_im
         response = api_client.post(
             "/jobs/dino_embedding",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"normalize": "true", "priority": 5},
+            data={"normalize": "true", "priority": "5"},
         )
 
     assert response.status_code == 200

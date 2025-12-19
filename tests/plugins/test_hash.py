@@ -8,17 +8,17 @@ import json
 import subprocess
 from io import BytesIO
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
-
-from typing import TYPE_CHECKING, Any, Sequence
 
 import pytest
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
+
     from cl_ml_tools import Worker
-    from cl_ml_tools.common.job_repository import JobRepository
     from cl_ml_tools.common.file_storage import JobStorage
+    from cl_ml_tools.common.job_repository import JobRepository
 
 from cl_ml_tools.plugins.hash.algo.generic import sha512hash_generic
 from cl_ml_tools.plugins.hash.algo.image import sha512hash_image
@@ -77,7 +77,7 @@ def test_hash_params_algorithm_validation():
         _ = HashParams(
             input_path="/path/to/input.jpg",
             output_path="output/hash.json",
-            algorithm="sha256",  # type: ignore
+            algorithm="sha256",  # pyright: ignore[reportArgumentType]
         )
 
 
@@ -367,7 +367,7 @@ def test_sha512_video_algo_errors(sample_video_path: Path):
     # 6. Read failure (IOError)
     mock_res = MagicMock(returncode=0, stdout=b"0,10,I\n")
     with patch("subprocess.run", return_value=mock_res):
-        with patch.object(bytes_io, "read", side_effect=IOError("read fail")):
+        with patch.object(bytes_io, "read", side_effect=OSError("read fail")):
             with pytest.raises(UnsupportedMediaType, match="Error processing video data"):
                  sha512hash_video2(bytes_io)
 
@@ -411,13 +411,16 @@ async def test_hash_task_run_success_md5(sample_image_path: Path, file_storage, 
 
     # Mock storage with resolve_path
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / job_id / relative_path
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -462,13 +465,16 @@ async def test_hash_task_run_success_sha512(sample_image_path: Path, tmp_path: P
 
     # Mock storage with resolve_path
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / job_id / relative_path
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -539,13 +545,16 @@ async def test_hash_task_progress_callback(sample_image_path: Path, tmp_path: Pa
 
     # Mock storage with resolve_path
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / job_id / relative_path
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -579,7 +588,7 @@ def test_hash_route_job_submission(api_client: "TestClient", sample_image_path: 
         response = api_client.post(
             "/jobs/hash",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"algorithm": "md5", "priority": 5},
+            data={"algorithm": "md5", "priority": "5"},
         )
 
     assert response.status_code == 200

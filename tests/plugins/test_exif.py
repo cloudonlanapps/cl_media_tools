@@ -6,18 +6,16 @@ Requires ExifTool to be installed.
 
 import json
 from pathlib import Path
-
-import json
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
+
     from cl_ml_tools import Worker
+    from cl_ml_tools.common.file_storage import JobStorage
     from cl_ml_tools.common.job_repository import JobRepository
-    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.exif.algo.exif_tool_wrapper import MetadataExtractor
 from cl_ml_tools.plugins.exif.schema import ExifMetadataOutput, ExifMetadataParams
@@ -104,7 +102,7 @@ def test_exif_output_from_raw_metadata():
         "DateTimeOriginal": "2023:10:15 14:30:00",
     }
 
-    output = ExifMetadataOutput.from_raw_metadata(raw_meta)
+    output = ExifMetadataOutput.from_raw_metadata(cast(Any, raw_meta))
 
     assert output.make == "Canon"
     assert output.model == "EOS 5D Mark IV"
@@ -207,10 +205,10 @@ async def test_exif_task_run_success(sample_image_path: Path, tmp_path: Path):
         def resolve_path(self, job_id: str, relative_path: str) -> Path:
             return tmp_path / job_id / relative_path
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "exif.json"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -250,10 +248,10 @@ async def test_exif_task_run_with_specific_tags(sample_image_path: Path, tmp_pat
         def resolve_path(self, job_id: str, relative_path: str) -> Path:
             return tmp_path / job_id / relative_path
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "exif.json"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -279,10 +277,10 @@ async def test_exif_task_run_file_not_found(tmp_path: Path):
         def resolve_path(self, job_id: str, relative_path: str) -> Path:
             return tmp_path / job_id / relative_path
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "exif.json"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -308,13 +306,17 @@ async def test_exif_task_progress_callback(sample_image_path: Path, tmp_path: Pa
     job_id = "test-job-progress"
 
     class MockStorage:
+        def create_directory(self, _id: str) -> None: pass
+        def remove(self, _id: str) -> bool: return True
+        async def save(self, _id, _path, _file, **_k) -> Any: return None
+        async def open(self, _id, _path) -> Any: return None
         def resolve_path(self, job_id: str, relative_path: str) -> Path:
             return tmp_path / job_id / relative_path
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "exif.json"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -380,7 +382,7 @@ def test_exif_route_job_submission_with_tags(api_client: "TestClient", sample_im
             "/jobs/exif",
             files={"file": ("test.jpg", f, "image/jpeg")},
             data={
-                "priority": 5,
+                "priority": "5",
                 "tags": '["ImageWidth", "ImageHeight"]',  # JSON string
             },
         )
@@ -447,7 +449,7 @@ async def test_exif_full_job_lifecycle_with_gps(
         response = api_client.post(
             "/jobs/exif",
             files={"file": ("test_gps.jpg", f, "image/jpeg")},
-            data={"priority": 5},
+            data={"priority": "5"},
         )
 
     assert response.status_code == 200

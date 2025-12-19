@@ -202,7 +202,7 @@ def update_manifest(generated_files: list[Path]) -> None:
     # Read existing manifest
     existing_entries: list[str] = []
     if MANIFEST_FILE.exists():
-        with open(MANIFEST_FILE, "r", encoding="utf-8") as f:
+        with open(MANIFEST_FILE, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#"):
@@ -262,7 +262,7 @@ def main() -> None:
 
     # Generate test images
     print("Step 3: Generating test images with EXIF metadata...")
-    generated_files = []
+    generated_files: list[Path] = []
 
     generated_files.append(generate_gps_image())
     generated_files.append(generate_camera_settings_image())

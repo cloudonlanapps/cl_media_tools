@@ -1,6 +1,6 @@
 """Unit tests for timestamp utilities."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from cl_ml_tools.utils.timestamp import fromTimeStamp, toTimeStamp
 
@@ -8,7 +8,7 @@ from cl_ml_tools.utils.timestamp import fromTimeStamp, toTimeStamp
 def test_to_timestamp_aware():
     """Test toTimeStamp with timezone-aware datetime."""
     # Create a specific UTC datetime
-    dt = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    dt = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
     # 2023-01-01 12:00:00 UTC = 1672574400 seconds = 1672574400000 ms
     expected = 1672574400000
     assert toTimeStamp(dt) == expected
@@ -32,7 +32,7 @@ def test_from_timestamp():
     dt = fromTimeStamp(ts)
 
     # Convert to UTC for comparison
-    dt_utc = dt.astimezone(timezone.utc)
+    dt_utc = dt.astimezone(UTC)
     assert dt_utc.year == 2023
     assert dt_utc.month == 1
     assert dt_utc.day == 1
@@ -41,9 +41,9 @@ def test_from_timestamp():
 
 def test_round_trip():
     """Test round trip conversion."""
-    dt = datetime.now(timezone.utc).replace(microsecond=0)
+    dt = datetime.now(UTC).replace(microsecond=0)
     ts = toTimeStamp(dt)
-    dt_back = fromTimeStamp(ts).astimezone(timezone.utc)
+    dt_back = fromTimeStamp(ts).astimezone(UTC)
     assert dt == dt_back
 
 
@@ -54,5 +54,5 @@ def test_with_offset():
     ts = toTimeStamp(dt)
 
     # 10:00:00 +05:30 = 04:30:00 UTC
-    expected_utc = datetime(2023, 5, 20, 4, 30, 0, tzinfo=timezone.utc)
-    assert fromTimeStamp(ts).astimezone(timezone.utc) == expected_utc
+    expected_utc = datetime(2023, 5, 20, 4, 30, 0, tzinfo=UTC)
+    assert fromTimeStamp(ts).astimezone(UTC) == expected_utc

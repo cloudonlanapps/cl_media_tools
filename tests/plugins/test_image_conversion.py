@@ -4,19 +4,18 @@ Tests schema validation, format conversion algorithms (JPEG↔PNG), task executi
 """
 
 from pathlib import Path
-
-import json
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from PIL import Image
+from cl_ml_tools.common.file_storage import SavedJobFile
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
+
     from cl_ml_tools import Worker
+    from cl_ml_tools.common.file_storage import JobStorage
     from cl_ml_tools.common.job_repository import JobRepository
-    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.image_conversion.algo.image_convert import (
     get_pil_format,
@@ -96,7 +95,7 @@ def test_image_conversion_params_format_validation():
         params = ImageConversionParams(
             input_path="/path/to/input.jpg",
             output_path=f"output/converted.{fmt}",
-            format=fmt,  # type: ignore
+            format=fmt,  # pyright: ignore[reportArgumentType]
         )
         assert params.format == fmt
 
@@ -105,7 +104,7 @@ def test_image_conversion_params_format_validation():
         _ = ImageConversionParams(
             input_path="/path/to/input.jpg",
             output_path="output/converted.svg",
-            format="svg",  # type: ignore
+            format="svg",  # pyright: ignore[reportArgumentType]
         )
 
 
@@ -305,13 +304,18 @@ async def test_image_conversion_task_run_success(sample_image_path: Path, tmp_pa
     job_id = "test-job-123"
 
     class MockStorage:
+        def create_directory(self, _id: str) -> None: pass
+        def remove(self, _id: str) -> bool: return True
+        async def save(self, _id, _path, _file, **_k) -> SavedJobFile:
+            return SavedJobFile(relative_path=_path, size=0)
+        async def open(self, _id, _path) -> Any: return None
         def resolve_path(self, job_id: str, relative_path: str) -> Path:
             return tmp_path / job_id / relative_path
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "converted.png"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -368,13 +372,18 @@ async def test_image_conversion_task_progress_callback(sample_image_path: Path, 
     job_id = "test-job-progress"
 
     class MockStorage:
+        def create_directory(self, _id: str) -> None: pass
+        def remove(self, _id: str) -> bool: return True
+        async def save(self, _id, _path, _file, **_k) -> SavedJobFile:
+            return SavedJobFile(relative_path=_path, size=0)
+        async def open(self, _id, _path) -> Any: return None
         def resolve_path(self, job_id: str, relative_path: str) -> Path:
             return tmp_path / job_id / relative_path
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str) -> Path:
             output_path = tmp_path / "output" / "converted.png"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 

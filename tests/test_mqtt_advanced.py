@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from paho.mqtt.client import Client, MQTTMessage
+from paho.mqtt.client import MQTTMessage
 
 from cl_ml_tools.utils.mqtt.mqtt_impl import BroadcasterBase, MQTTBroadcaster, NoOpBroadcaster
 

@@ -34,7 +34,7 @@ class HLSVariant:
     def __init__(
         self,
         resolution: int | str | None = None,
-        bitrate: int | None = None,
+        bitrate: int | str | None = None,
     ) -> None:
         if bitrate is not None:
             if isinstance(bitrate, str):
