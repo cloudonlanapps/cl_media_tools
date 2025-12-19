@@ -42,21 +42,27 @@ class ModelDownloader:
         filename: str,
         expected_sha256: str | None = None,
         force_redownload: bool = False,
+        auto_extract: bool = False,
+        extract_pattern: str | None = None,
     ) -> Path:
-        """Download a model file and cache it locally.
+        """Download a model file and optionally extract from ZIP archive.
 
         Args:
             url: URL to download the model from
-            filename: Filename to save the model as (e.g., "face_detection.onnx")
+            filename: Filename to save the model as (e.g., "face_detection.onnx" or "model.zip")
             expected_sha256: Expected SHA256 hash for verification (optional but recommended)
             force_redownload: If True, redownload even if file exists
+            auto_extract: If True and file is .zip, extract contents
+            extract_pattern: Glob pattern to find file in ZIP (e.g., "*.onnx").
+                           If None, extracts all files and returns first extracted file.
 
         Returns:
-            Path to the cached model file
+            Path to the cached model file (or extracted file if auto_extract=True)
 
         Raises:
             httpx.HTTPError: If download fails
             ValueError: If SHA256 hash does not match expected value
+            FileNotFoundError: If extract_pattern specified but no matching files found in ZIP
         """
         model_path = self.cache_dir / filename
 
@@ -112,6 +118,42 @@ class ModelDownloader:
                         + f"got {actual_hash}. File deleted."
                     )
                 logger.info("Model hash verified successfully")
+
+            # Auto-extract if requested
+            if auto_extract and model_path.suffix == ".zip":
+                import zipfile
+
+                extract_dir = model_path.parent
+
+                # Check if already extracted
+                if extract_pattern:
+                    existing = list(extract_dir.glob(extract_pattern))
+                    if existing and not force_redownload:
+                        logger.info(f"Found already extracted file: {existing[0]}")
+                        return existing[0]
+
+                # Extract ZIP file
+                logger.info(f"Extracting {model_path}")
+                with zipfile.ZipFile(model_path, "r") as zip_ref:
+                    if extract_pattern:
+                        # Extract specific files matching pattern
+                        members = [
+                            m for m in zip_ref.namelist() if Path(m).match(extract_pattern)
+                        ]
+                        if not members:
+                            raise FileNotFoundError(
+                                f"No files matching '{extract_pattern}' found in {model_path}"
+                            )
+                        for member in members:
+                            _ = zip_ref.extract(member, extract_dir)
+                        extracted_file = extract_dir / members[0]
+                    else:
+                        # Extract all files
+                        zip_ref.extractall(extract_dir)
+                        extracted_file = extract_dir / zip_ref.namelist()[0]
+
+                logger.info(f"Extracted to: {extracted_file}")
+                return extracted_file
 
             return model_path
 

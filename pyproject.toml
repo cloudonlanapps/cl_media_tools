@@ -86,6 +86,8 @@ markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
 addopts = "--cov=src/cl_ml_tools --cov-report=html --cov-report=term-missing --cov-fail-under=85"
+# Custom test storage directory (optional, overridden by TEST_STORAGE_DIR env var)
+test_storage_base_dir = "/tmp/cl_ml_tools_test_storage"
 
 [tool.coverage.run]
 source = ["src/cl_ml_tools"]

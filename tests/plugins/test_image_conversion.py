@@ -233,20 +233,6 @@ def test_image_convert_rgba_to_jpg(tmp_path: Path):
         assert img.mode == "RGB"
 
 
-def test_image_convert_creates_output_directory(sample_image_path: Path, tmp_path: Path):
-    """Test image_convert creates output directory if needed."""
-    output_path = tmp_path / "nested" / "dir" / "output.png"
-
-    result = image_convert(
-        input_path=sample_image_path,
-        output_path=output_path,
-        format="png",
-    )
-
-    assert output_path.exists()
-    assert output_path.parent.exists()
-
-
 def test_image_convert_file_not_found(tmp_path: Path):
     """Test image_convert raises FileNotFoundError for missing input."""
     output_path = tmp_path / "output.png"
@@ -254,6 +240,18 @@ def test_image_convert_file_not_found(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
         image_convert(
             input_path="/nonexistent/file.jpg",
+            output_path=output_path,
+            format="png",
+        )
+
+
+def test_image_convert_output_directory_not_found(sample_image_path: Path, tmp_path: Path):
+    """Test image_convert raises FileNotFoundError when output directory doesn't exist."""
+    output_path = tmp_path / "nonexistent" / "dir" / "output.png"
+
+    with pytest.raises(FileNotFoundError, match="Output directory does not exist"):
+        image_convert(
+            input_path=sample_image_path,
             output_path=output_path,
             format="png",
         )

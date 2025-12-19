@@ -150,14 +150,11 @@ def test_exif_algo_with_gps_image(exif_test_image_path: Path):
 
 @pytest.mark.requires_exiftool
 def test_exif_algo_nonexistent_file():
-    """Test EXIF extraction with non-existent file."""
+    """Test EXIF extraction raises FileNotFoundError for non-existent file."""
     extractor = MetadataExtractor()
 
-    # Should handle gracefully - may return empty dict or raise
-    result = extractor.extract_metadata_all("/nonexistent/file.jpg")
-
-    # Either empty dict or the method raised an exception
-    assert isinstance(result, dict)
+    with pytest.raises(FileNotFoundError, match="File not found"):
+        extractor.extract_metadata_all("/nonexistent/file.jpg")
 
 
 @pytest.mark.requires_exiftool
@@ -274,15 +271,15 @@ async def test_exif_task_run_file_not_found(tmp_path: Path):
             return tmp_path / job_id / relative_path
 
         def allocate_path(self, job_id: str, relative_path: str) -> str:
-            return str(tmp_path / "output" / "exif.json")
+            output_path = tmp_path / "output" / "exif.json"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            return str(output_path)
 
     storage = MockStorage()
 
-    # Should handle gracefully or raise
-    output = await task.run(job_id, params, storage)
-
-    # Either returns empty output or raises
-    assert isinstance(output, ExifMetadataOutput)
+    # Should raise FileNotFoundError for missing file
+    with pytest.raises(FileNotFoundError):
+        await task.run(job_id, params, storage)
 
 
 @pytest.mark.requires_exiftool

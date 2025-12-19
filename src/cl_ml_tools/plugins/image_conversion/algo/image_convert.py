@@ -48,8 +48,11 @@ def image_convert(
         if fmt == "png":
             save_kwargs["optimize"] = True
 
-        # Ensure parent directory exists
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure parent directory exists (caller's responsibility to create)
+        if not output_path.parent.exists():
+            raise FileNotFoundError(
+                f"Output directory does not exist: {output_path.parent}"
+            )
 
         img.save(
             output_path,

@@ -161,7 +161,11 @@ def temp_output_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def sample_image_path() -> Path:
-    """Provide path to a real test image."""
+    """Provide path to a real test image.
+
+    Raises:
+        pytest.fail: If no test images available (ensures CI/CD catches missing setup)
+    """
     # Use first available image from test_media
     images_dir = TEST_MEDIA_DIR / "images"
     if images_dir.exists():
@@ -169,31 +173,59 @@ def sample_image_path() -> Path:
         if images:
             return images[0]
 
-    pytest.skip("No test images available")
+    pytest.fail(
+        "No test images available.\n"
+        "Run: python tests/setup_test_media.py"
+    )
 
 
 @pytest.fixture
 def sample_video_path() -> Path:
-    """Provide path to a real test video."""
+    """Provide path to a test video, generating one if needed.
+
+    For HLS streaming tests, generates 30-second HD videos (1280x720)
+    to ensure multiple .ts segments are created.
+
+    Raises:
+        pytest.fail: If video cannot be generated (ensures CI/CD catches issues)
+    """
+    from tests.utils.video_generator import ensure_hls_test_videos_exist
+
     videos_dir = TEST_MEDIA_DIR / "videos"
-    if videos_dir.exists():
-        videos = list(videos_dir.glob("*.mp4"))
+
+    try:
+        videos = ensure_hls_test_videos_exist(videos_dir, count=1)
         if videos:
             return videos[0]
+    except ImportError as exc:
+        pytest.fail(
+            f"OpenCV (cv2) not installed. Required for video generation.\n"
+            f"Install with: pip install opencv-python\n"
+            f"Error: {exc}"
+        )
+    except RuntimeError as exc:
+        pytest.fail(f"Video generation failed: {exc}")
 
-    pytest.skip("No test videos available")
+    pytest.fail("No test videos available and generation failed")
 
 
 @pytest.fixture
 def exif_test_image_path() -> Path:
-    """Provide path to image with known EXIF metadata."""
+    """Provide path to image with known EXIF metadata.
+
+    Raises:
+        pytest.fail: If EXIF test images not generated (ensures CI/CD catches missing setup)
+    """
     exif_dir = TEST_MEDIA_DIR / "exif_generated"
     if exif_dir.exists():
         images = list(exif_dir.glob("with_gps.jpg"))
         if images:
             return images[0]
 
-    pytest.skip("EXIF test images not generated. Run: python tests/generate_exif_test_media.py")
+    pytest.fail(
+        "EXIF test images not generated.\n"
+        "Run: python tests/generate_exif_test_media.py"
+    )
 
 
 @pytest.fixture
@@ -314,12 +346,33 @@ def job_repository():
 
 
 @pytest.fixture
-def file_storage(tmp_path: Path):
-    """Provide in-memory file storage for testing."""
-    from cl_ml_tools.common.file_storage_impl import LocalFileStorage
+def file_storage(tmp_path: Path, pytestconfig):
+    """Provide file storage for testing.
 
-    storage_dir = tmp_path / "file_storage"
-    storage_dir.mkdir()
+    Configuration priority:
+    1. TEST_STORAGE_DIR environment variable
+    2. pytest.ini test_storage_base_dir option
+    3. Default: tmp_path / "file_storage"
+    """
+    from cl_ml_tools.common.file_storage_impl import LocalFileStorage
+    import os
+
+    # Check environment variable first
+    env_storage = os.environ.get("TEST_STORAGE_DIR")
+    if env_storage:
+        storage_dir = Path(env_storage)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        # Check pytest.ini configuration
+        ini_storage = pytestconfig.getini("test_storage_base_dir")
+        if ini_storage:
+            storage_dir = Path(ini_storage)
+            storage_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            # Default to tmp_path
+            storage_dir = tmp_path / "file_storage"
+            storage_dir.mkdir()
+
     return LocalFileStorage(base_dir=storage_dir)
 
 

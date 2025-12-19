@@ -72,9 +72,6 @@ class ExifTask(ComputeModule[ExifMetadataParams, ExifMetadataOutput]):
             relative_path=params.output_path,
         )
 
-        # Ensure parent directory exists
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-
         with open(path, "w", encoding="utf-8") as f:
             json.dump(metadata.model_dump(), f, indent=2)
 

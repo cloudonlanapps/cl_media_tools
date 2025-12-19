@@ -46,9 +46,12 @@ def is_mqtt_running(host: str = "localhost", port: int = 1883, timeout: int = 2)
 
 
 def skip_if_no_mqtt():
-    """Pytest marker to skip test if MQTT is not running."""
+    """Fail test if MQTT is not running."""
     if not is_mqtt_running():
-        pytest.skip("MQTT broker not running on localhost:1883")
+        pytest.fail(
+            "MQTT broker not running on localhost:1883.\n"
+            "Start broker or exclude MQTT tests with: pytest -m 'not mqtt'"
+        )
 
 
 # ============================================================================
@@ -918,9 +921,12 @@ class TestBroadcasterMethods:
 
         broadcaster: MQTTBroadcaster = MQTTBroadcaster(broker="localhost", port=1883)
         try:
-            # Skip test if clear_retained not yet implemented in cl_server_shared
+            # Fail test if clear_retained not yet implemented in cl_server_shared
             if not hasattr(broadcaster, "clear_retained"):
-                pytest.skip("clear_retained method not yet implemented in cl_server_shared")
+                pytest.fail(
+                    "clear_retained method not yet implemented in cl_server_shared.\n"
+                    "Update cl_server_shared package to include this method."
+                )
 
             assert callable(broadcaster.clear_retained)
         finally:

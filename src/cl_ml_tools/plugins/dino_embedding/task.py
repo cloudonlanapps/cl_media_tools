@@ -53,7 +53,7 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams, DinoEmbeddingOutput])
         input_path = storage.resolve_path(job_id, params.input_path)
 
         embedding = self._embedder.embed(
-            image_path=str(input_path),
+            image_path=input_path,
             normalize=params.normalize,
         )
 

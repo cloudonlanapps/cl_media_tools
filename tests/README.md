@@ -236,9 +236,10 @@ Defined in `tests/conftest.py`:
 - No database required
 - Fast, isolated
 
-**file_storage(tmp_path)**
-- LocalFileStorage with temp directory
+**file_storage(tmp_path, pytestconfig)**
+- LocalFileStorage with configurable temp directory
 - No external storage required
+- Configurable via environment variable or pytest.ini
 
 **worker(job_repository, file_storage)**
 - Worker instance for integration tests
@@ -248,6 +249,47 @@ Defined in `tests/conftest.py`:
 - FastAPI TestClient
 - Uses test dependencies
 - For route testing
+
+## Configuring Test Storage Location
+
+By default, tests use pytest's temporary directory for job storage. You can override this for debugging or CI/CD environments.
+
+### Configuration Priority
+
+1. **TEST_STORAGE_DIR environment variable** (highest priority)
+2. **pytest.ini test_storage_base_dir option**
+3. **Default: tmp_path / "file_storage"** (pytest's temp dir)
+
+### Environment Variable (Recommended for Debugging)
+
+```bash
+# Set storage location via environment variable
+export TEST_STORAGE_DIR=/tmp/cl_ml_tools_test_storage
+pytest tests/
+
+# One-liner
+TEST_STORAGE_DIR=/tmp/test_storage pytest tests/plugins/test_hash.py
+```
+
+### pytest.ini Configuration (Recommended for Team Settings)
+
+In `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+# Uncomment and set your preferred path
+test_storage_base_dir = "/tmp/cl_ml_tools_test_storage"
+```
+
+### Default Behavior
+
+If neither is set, tests use `tmp_path / "file_storage"` (pytest's temporary directory, automatically cleaned up after tests).
+
+### Use Cases
+
+- **Debugging:** Set `TEST_STORAGE_DIR` to inspect test artifacts after test runs
+- **CI/CD:** Configure via pytest.ini for consistent paths across team
+- **Development:** Use default for automatic cleanup
 
 ## Integration Test Pattern
 

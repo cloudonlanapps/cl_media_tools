@@ -32,13 +32,17 @@ class HLSStreamingTask(ComputeModule[HLSStreamingParams, HLSStreamingOutput]):
         if not input_path.exists():
             raise FileNotFoundError("Input file not found: " + str(input_path))
 
-        output_dir = Path(
-            storage.allocate_path(
-                job_id=job_id,
-                relative_path=params.output_path,
-            )
+        # Allocate path for master playlist to ensure output directory exists
+        master_playlist_path = storage.allocate_path(
+            job_id=job_id,
+            relative_path=params.output_path + "/adaptive.m3u8",
         )
-        output_dir.mkdir(parents=True, exist_ok=True)
+        master_playlist = Path(master_playlist_path)
+        output_dir = master_playlist.parent
+
+        # Verify directory exists (allocate_path should have created it)
+        if not output_dir.exists():
+            raise FileNotFoundError(f"Output directory was not created by storage: {output_dir}")
 
         generator = HLSStreamGenerator(
             input_file=str(input_path),
@@ -53,8 +57,6 @@ class HLSStreamingTask(ComputeModule[HLSStreamingParams, HLSStreamingOutput]):
 
         if params.include_original:
             _ = generator.addOriginal()
-
-        master_playlist = output_dir / "adaptive.m3u8"
 
         validator = HLSValidator(str(master_playlist))
         validation = validator.validate()

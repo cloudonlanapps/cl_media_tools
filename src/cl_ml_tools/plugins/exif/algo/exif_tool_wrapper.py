@@ -78,8 +78,7 @@ class MetadataExtractor:
         path = Path(filepath)
 
         if not path.exists():
-            logger.warning(f"File not found: {path}")
-            return {}
+            raise FileNotFoundError(f"File not found: {path}")
 
         try:
             result = subprocess.run(
