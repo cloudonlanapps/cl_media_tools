@@ -2,10 +2,10 @@ from collections.abc import Mapping
 from enum import Enum
 from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-TaskOutputRecord = Mapping[str, object]
-TaskParamsRecord = Mapping[str, object]
+TaskParamsRecord = dict[str, JsonValue]
+TaskOutputRecord = dict[str, JsonValue]
 
 
 class JobStatus(str, Enum):
