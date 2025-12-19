@@ -3,13 +3,15 @@
 from typing import Callable, override
 
 from ...common.compute_module import ComputeModule
-from ...common.schemas import BaseJobParams, Job, TaskResult
+from ...common.file_storage import JobStorage
 from .algo.image_convert import image_convert
-from .schema import ImageConversionParams
+from .schema import ImageConversionOutput, ImageConversionParams
 
 
-class ImageConversionTask(ComputeModule[ImageConversionParams]):
-    """Compute module for converting images between formats."""
+class ImageConversionTask(ComputeModule[ImageConversionParams, ImageConversionOutput]):
+    """Compute module for converting an image between formats."""
+
+    schema: type[ImageConversionParams] = ImageConversionParams
 
     @property
     @override
@@ -17,45 +19,36 @@ class ImageConversionTask(ComputeModule[ImageConversionParams]):
         return "image_conversion"
 
     @override
-    def get_schema(self) -> type[BaseJobParams]:
-        return ImageConversionParams
-
-    @override
-    async def execute(
+    async def run(
         self,
-        job: Job,
+        job_id: str,
         params: ImageConversionParams,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> TaskResult:
+    ) -> ImageConversionOutput:
+        input_path = storage.resolve_path(job_id, params.input_path)
+        output_path = storage.allocate_path(
+            job_id=job_id,
+            relative_path=params.output_path,
+        )
+
         try:
-            processed_files: list[str] = []
-            total_files = len(params.input_paths)
+            _ = image_convert(
+                input_path=str(input_path),
+                output_path=output_path,
+                format=params.format,
+                quality=params.quality,
+            )
 
-            for index, (input_path, output_path) in enumerate(
-                zip(params.input_paths, params.output_paths)
-            ):
-                output = image_convert(
-                    input_path=input_path,
-                    output_path=output_path,
-                    format=params.format,
-                    quality=params.quality,
-                )
+        except ImportError as exc:
+            raise RuntimeError(
+                "Pillow is not installed. " + "Install with: pip install cl_ml_tools[compute]"
+            ) from exc
 
-                processed_files.append(output)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError("Input file not found: " + str(exc)) from exc
 
-                if progress_callback:
-                    progress = int((index + 1) / total_files * 100)
-                    progress_callback(progress)
+        if progress_callback:
+            progress_callback(100)
 
-            return TaskResult(status = "ok", task_output = {
-                    "processed_files": processed_files,
-                    "format": params.format,
-                    "quality": params.quality,
-                })
-
-        except ImportError:
-            return TaskResult(status = "error", error = "Pillow is not installed. Install with: pip install cl_ml_tools[compute]")
-        except FileNotFoundError as e:
-            return TaskResult(status = "error", error = f"Input file not found: {e}")
-        except Exception as e:
-            return TaskResult(status = "error", error = str(e))
+        return ImageConversionOutput()

@@ -1,36 +1,25 @@
 """Face detection task implementation."""
 
+import json
 import logging
-from typing import Callable, Literal, TypedDict, override
+from typing import Callable, override
+
+from PIL import Image
 
 from ...common.compute_module import ComputeModule
-from ...common.schemas import BaseJobParams, Job, TaskResult
+from ...common.file_storage import JobStorage
 from .algo.face_detector import FaceDetector
-from .schema import BoundingBox, FaceDetectionParams, FaceDetectionResult
+from .schema import BoundingBox, FaceDetectionOutput, FaceDetectionParams
 
 logger = logging.getLogger(__name__)
 
 
-class FileSuccessResult(TypedDict):
-    file_path: str
-    status: Literal["success"]
-    detection: dict[str, object]
+class FaceDetectionTask(ComputeModule[FaceDetectionParams, FaceDetectionOutput]):
+    """Compute module for detecting faces in an image using ONNX model."""
 
-
-class FileErrorResult(TypedDict):
-    file_path: str
-    status: Literal["error"]
-    error: str
-
-
-FileResult = FileSuccessResult | FileErrorResult
-
-
-class FaceDetectionTask(ComputeModule[FaceDetectionParams]):
-    """Compute module for detecting faces in images using ONNX model."""
+    schema: type[FaceDetectionParams] = FaceDetectionParams
 
     def __init__(self) -> None:
-        super().__init__()
         self._detector: FaceDetector | None = None
 
     @property
@@ -39,122 +28,67 @@ class FaceDetectionTask(ComputeModule[FaceDetectionParams]):
         return "face_detection"
 
     @override
-    def get_schema(self) -> type[BaseJobParams]:
-        return FaceDetectionParams
-
-    def _get_detector(self) -> FaceDetector:
+    def setup(self) -> None:
         if self._detector is None:
-            self._detector = FaceDetector()
-            logger.info("Face detector initialized successfully")
-        return self._detector
+            try:
+                self._detector = FaceDetector()
+                logger.info("Face detector initialized successfully")
+            except (FileNotFoundError, RuntimeError, ImportError, OSError) as exc:
+                logger.error("Face detector initialization failed", exc_info=exc)
+                raise RuntimeError(
+                    "Failed to initialize face detector. "
+                    + "Ensure ONNX Runtime is installed and the model is available."
+                ) from exc
 
     @override
-    async def execute(
+    async def run(
         self,
-        job: Job,
+        job_id: str,
         params: FaceDetectionParams,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> TaskResult:
-        try:
-            try:
-                detector = self._get_detector()
-            except Exception as e:
-                logger.error("Face detector initialization failed: %s", e)
-                return TaskResult(status = "error", error = (
-                        "Failed to initialize face detector: "
-                        f"{e}. Ensure ONNX Runtime is installed and the model can be downloaded."
-                    ))
+    ) -> FaceDetectionOutput:
+        if not self._detector:
+            raise RuntimeError("Face detector is not initialized")
 
-            file_results: list[FileResult] = []
-            total_files: int = len(params.input_paths)
+        input_path = storage.resolve_path(job_id, params.input_path)
 
-            from PIL import Image
+        detections = self._detector.detect(
+            image_path=str(input_path),
+            confidence_threshold=params.confidence_threshold,
+            nms_threshold=params.nms_threshold,
+        )
 
-            for index, input_path in enumerate(params.input_paths):
-                try:
-                    detections = detector.detect(
-                        image_path=input_path,
-                        confidence_threshold=params.confidence_threshold,
-                        nms_threshold=params.nms_threshold,
-                    )
+        with Image.open(input_path) as img:
+            image_width, image_height = img.size
 
-                    with Image.open(input_path) as img:
-                        image_width, image_height = img.size
+        faces = [
+            BoundingBox(
+                x1=det["x1"],
+                y1=det["y1"],
+                x2=det["x2"],
+                y2=det["y2"],
+                confidence=det["confidence"],
+            )
+            for det in detections
+        ]
 
-                    face_boxes = [
-                        BoundingBox(
-                            x1=det["x1"],
-                            y1=det["y1"],
-                            x2=det["x2"],
-                            y2=det["y2"],
-                            confidence=det["confidence"],
-                        )
-                        for det in detections
-                    ]
+        output = FaceDetectionOutput(
+            faces=faces,
+            num_faces=len(faces),
+            image_width=image_width,
+            image_height=image_height,
+        )
 
-                    result = FaceDetectionResult(
-                        file_path=input_path,
-                        faces=face_boxes,
-                        num_faces=len(face_boxes),
-                        image_width=image_width,
-                        image_height=image_height,
-                    )
+        path = storage.allocate_path(
+            job_id=job_id,
+            relative_path=params.output_path,
+        )
 
-                    file_results.append(
-                        {
-                            "file_path": input_path,
-                            "status": "success",
-                            "detection": result.model_dump(),
-                        }
-                    )
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(output.model_dump(), f, indent=2)
 
-                except FileNotFoundError:
-                    logger.error("File not found: %s", input_path)
-                    file_results.append(
-                        {
-                            "file_path": input_path,
-                            "status": "error",
-                            "error": "File not found",
-                        }
-                    )
+        if progress_callback:
+            progress_callback(100)
 
-                except Exception as e:
-                    logger.error("Failed to detect faces in %s: %s", input_path, e)
-                    file_results.append(
-                        {
-                            "file_path": input_path,
-                            "status": "error",
-                            "error": str(e),
-                        }
-                    )
-
-                if progress_callback:
-                    progress_callback(int((index + 1) / total_files * 100))
-
-            all_success: bool = all(r["status"] == "success" for r in file_results)
-            any_success: bool = any(r["status"] == "success" for r in file_results)
-
-            if not any_success:
-                return TaskResult(status = "error", task_output = {
-                        "files": file_results,
-                        "total_files": total_files,
-                    }, error = "Failed to detect faces in all files")
-
-            if not all_success:
-                success_count = sum(1 for r in file_results if r["status"] == "success")
-                logger.warning(
-                    "Partial success: %d/%d files processed successfully",
-                    success_count,
-                    total_files,
-                )
-
-            return TaskResult(status = "ok", task_output = {
-                    "files": file_results,
-                    "total_files": total_files,
-                    "confidence_threshold": params.confidence_threshold,
-                    "nms_threshold": params.nms_threshold,
-                })
-
-        except Exception as e:
-            logger.exception("Unexpected error in FaceDetectionTask: %s", e)
-            return TaskResult(status = "error", error = f"Task failed: {e}")
+        return output

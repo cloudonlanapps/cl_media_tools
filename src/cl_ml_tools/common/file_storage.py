@@ -1,95 +1,177 @@
-"""FileStorage Protocol - interface for file storage operations."""
+"""
+JobStorage Protocol - interface for job-scoped file storage operations.
 
+Design goals:
+- Hide internal folder structure
+- Support async uploads & streaming
+- Support filesystem-bound libraries (numpy, opencv, ffmpeg)
+- Keep storage as the single authority over paths
+"""
+
+from __future__ import annotations
+
+from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import ClassVar, Protocol, runtime_checkable
 
-if TYPE_CHECKING:
-    from fastapi import UploadFile
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class JobStorageError(Exception):
+    """Base class for storage-related errors."""
+
+
+class JobDirectoryCreationError(JobStorageError):
+    def __init__(self, job_id: str | int):
+        self.job_id: str | int = job_id
+        super().__init__(f"Failed to create storage directory for job '{job_id}'")
+
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
+
+class SavedJobFile(BaseModel):
+    """Metadata of a saved job file."""
+
+    relative_path: str = Field(
+        ...,
+        description="Relative path of the saved file within the job storage",
+    )
+    size: int = Field(
+        ...,
+        ge=0,
+        description="File size in bytes",
+    )
+    hash: str | None = Field(
+        None,
+        description="Optional content hash (e.g., SHA256)",
+    )
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
+# ---------------------------------------------------------------------------
+# File-like abstractions
+# ---------------------------------------------------------------------------
+
+
+class AsyncFileLike(Protocol):
+    """Minimal async file-like interface."""
+
+    async def read(self, size: int, /) -> bytes: ...
+
+
+FileLike = AsyncFileLike | bytes | str | PathLike[str]
+
+
+# ---------------------------------------------------------------------------
+# Storage Protocol
+# ---------------------------------------------------------------------------
 
 
 @runtime_checkable
-class FileStorage(Protocol):
-    """Protocol for file storage operations.
+class JobStorage(Protocol):
+    """
+    Protocol for job-scoped file storage.
 
-    Applications must implement this protocol to provide file storage
-    functionality. All paths returned by methods are absolute paths.
+    Implementations own:
+    - storage root
+    - directory layout
+    - permissions
+    - lifecycle management
 
-    Example implementation using local filesystem:
-
-        class LocalFileStorage:
-            def __init__(self, base_dir: str):
-                self.base_dir = Path(base_dir)
-
-            def create_job_directory(self, job_id: str) -> Path:
-                job_dir = self.base_dir / "jobs" / job_id
-                (job_dir / "input").mkdir(parents=True, exist_ok=True)
-                (job_dir / "output").mkdir(parents=True, exist_ok=True)
-                return job_dir
-
-            # ... implement other methods
+    Callers interact ONLY via job_id and relative paths.
     """
 
-    def create_job_directory(self, job_id: str) -> Path:
-        """Create job directory structure with input/output subdirectories.
+    # ---------------------------------------------------------------------
+    # Job lifecycle
+    # ---------------------------------------------------------------------
 
-        Args:
-            job_id: Unique job identifier
+    def create_directory(self, job_id: str) -> None:
+        """
+        Create storage directory for a job.
 
         Returns:
-            Absolute path to the job directory
+            True if created or already exists, False otherwise.
         """
         ...
 
-    def get_input_path(self, job_id: str) -> Path:
-        """Get absolute path to job's input directory.
-
-        Args:
-            job_id: Unique job identifier
+    def remove(self, job_id: str) -> bool:
+        """
+        Remove all files associated with a job.
 
         Returns:
-            Absolute path to the input directory
+            True if removed successfully, False otherwise.
         """
         ...
 
-    def get_output_path(self, job_id: str) -> Path:
-        """Get absolute path to job's output directory.
+    # ---------------------------------------------------------------------
+    # Writing
+    # ---------------------------------------------------------------------
 
-        Args:
-            job_id: Unique job identifier
+    async def save(
+        self,
+        job_id: str,
+        relative_path: str,
+        file: FileLike,
+        *,
+        mkdirs: bool = True,
+    ) -> SavedJobFile:
+        """
+        Save a file into job storage.
+
+        `file` may be:
+        - async file-like object (UploadFile, aiofiles, etc.)
+        - bytes
+        - existing filename or Path (copied)
 
         Returns:
-            Absolute path to the output directory
+            Metadata of the saved file.
         """
         ...
 
-    async def save_input_file(
-        self, job_id: str, filename: str, file: "UploadFile"
-    ) -> dict[str, str]:
-        """Save uploaded file to job's input directory.
+    def allocate_path(
+        self,
+        job_id: str,
+        relative_path: str,
+        *,
+        mkdirs: bool = True,
+    ) -> Path:
+        """
+        Allocate a filesystem path for writing.
 
-        Args:
-            job_id: Unique job identifier
-            filename: Target filename
-            file: File object (e.g., FastAPI UploadFile)
+        Intended for libraries that require filenames
+        (numpy, opencv, ffmpeg, PIL).
 
-        Returns:
-            Dict with file metadata:
-            {
-                "filename": str,  # Saved filename
-                "path": str,      # Absolute path to saved file
-                "size": int,      # File size in bytes
-                "hash": str       # File hash (e.g., SHA256)
-            }
+        Storage retains control of layout; caller owns writing.
         """
         ...
 
-    def cleanup_job(self, job_id: str) -> bool:
-        """Delete job directory and all its files.
+    # ---------------------------------------------------------------------
+    # Reading / resolving
+    # ---------------------------------------------------------------------
 
-        Args:
-            job_id: Unique job identifier
+    async def open(
+        self,
+        job_id: str,
+        relative_path: str,
+    ) -> AsyncFileLike:
+        """
+        Open a stored file for async reading.
+        """
+        ...
 
-        Returns:
-            True if deleted, False if directory didn't exist
+    def resolve_path(
+        self,
+        job_id: str,
+        relative_path: str | None = None,
+    ) -> Path:
+        """
+        Resolve a job-relative path to an absolute filesystem path.
+
+        This is an intentional abstraction boundary and should only
+        be used when required by filesystem-bound libraries.
         """
         ...

@@ -1,14 +1,14 @@
 """Common module - protocols, schemas, and base classes."""
 
 from .compute_module import ComputeModule
-from .file_storage import FileStorage
+from .file_storage import JobStorage
 from .job_repository import JobRepository
-from .schemas import BaseJobParams, Job
+from .schema_job import BaseJobParams, Job
 
 __all__ = [
     "Job",
     "BaseJobParams",
     "ComputeModule",
     "JobRepository",
-    "FileStorage",
+    "JobStorage",
 ]

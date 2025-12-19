@@ -1,8 +1,11 @@
+import logging
 import os
 import re
 from dataclasses import dataclass
 
 import m3u8
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -103,7 +106,7 @@ class HLSValidator:
                         f"Missing segments in {uri}: {len(missing_segments)} of {len(variant_segments)}"
                     )
 
-        except Exception as e:
+        except (OSError, ValueError, KeyError) as e:
             self.errors.append(f"Validation error: {str(e)}")
             return ValidationResult(
                 is_valid=False,
@@ -129,7 +132,7 @@ class HLSValidator:
 def validate_hls_output(m3u8_file: str) -> str | None:
     validator = HLSValidator(m3u8_file=m3u8_file)
     validation_result = validator.validate()
-    print(validation_result)
+    logger.debug(f"Validation result: {validation_result}")
     if not validation_result.is_valid:
         error_message = "\n".join(
             [
@@ -141,10 +144,3 @@ def validate_hls_output(m3u8_file: str) -> str | None:
         )
         return error_message
     return None
-
-
-if __name__ == "__main__":
-    result = validate_hls_output(
-        m3u8_file="/disks/data/git/github/asarangaram/dash_experiment/VID_20240206_095544/adaptive.m3u8"
-    )
-    print(result)

@@ -1,641 +1,1000 @@
 # cl_ml_tools
 
-A Python library for building master-worker media processing / ML systems. Provides task plugins, worker runtime, and protocols for job persistence and file storage.
+[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)]()
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
+
+**Master-worker media processing and machine learning toolkit** providing task plugins, worker runtime, and protocols for job persistence and file storage.
 
 ## Features
 
-- **Plugin-based architecture** - Add new media processing / ML tasks without modifying core code
-- **Protocol-driven design** - Implement `JobRepository` and `FileStorage` to integrate with any database/storage
-- **Dynamic discovery** - Plugins auto-registered via Python entry points
-- **Race-condition safe** - Atomic job claiming prevents duplicate processing
-- **FastAPI integration** - Auto-generates REST endpoints for job creation
-- **ONNX ML plugins** - CPU-optimized face recognition, visual similarity, and semantic search
-- **Automatic model management** - Models download on-demand and cache locally
+- **9 Production-Ready Plugins**: Image/video processing, ML embeddings, face analysis, and HLS streaming
+- **FastAPI Integration**: Drop-in HTTP API with auto-discovery of plugins
+- **Standalone Algorithm API**: Use ML models and processors directly without FastAPI
+- **Async Job Queue**: Priority-based task scheduling with MQTT support
+- **Hardware Acceleration**: Optimized for Raspberry Pi 5 + Hailo 8 AI Hat+
+- **Type-Safe**: Full Pydantic validation and type hints throughout
+
+## Plugins
+
+1. **media_thumbnail** - Generate thumbnails from images and videos
+2. **image_conversion** - Convert images between formats (PNG, JPG, WebP, etc.)
+3. **hash** - Compute content hashes (SHA512, MD5, perceptual)
+4. **exif** - Extract EXIF metadata from images
+5. **clip_embedding** - MobileCLIP semantic image embeddings (512-dim)
+6. **dino_embedding** - DINOv2 visual similarity embeddings (384-dim)
+7. **face_detection** - YuNet face detection with bounding boxes
+8. **face_embedding** - ArcFace embeddings for face recognition
+9. **hls_streaming** - Multi-quality HLS video streaming conversion
+
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [FastAPI Routes Reference](#fastapi-routes-reference)
+  - [Media Thumbnail](#1-media_thumbnail)
+  - [Image Conversion](#2-image_conversion)
+  - [Hash Computation](#3-hash)
+  - [EXIF Extraction](#4-exif)
+  - [CLIP Embedding](#5-clip_embedding)
+  - [DINO Embedding](#6-dino_embedding)
+  - [Face Detection](#7-face_detection)
+  - [Face Embedding](#8-face_embedding)
+  - [HLS Streaming](#9-hls_streaming)
+- [Algorithm API Reference](#algorithm-api-reference)
+- [Configuration](#configuration)
+- [Hardware Support](#hardware-support)
+- [Testing](#testing)
+- [License & Contributing](#license--contributing)
+
+---
 
 ## Installation
 
+### Basic Installation
+
 ```bash
 pip install cl_ml_tools
-
-# With FastAPI support (for master/API server)
-pip install cl_ml_tools[master]
-
-# With compute plugins (image processing, etc.)
-pip install cl_ml_tools[compute]
-
-# All extras
-pip install cl_ml_tools[master,compute]
 ```
+
+### Development Installation
+
+```bash
+pip install cl_ml_tools[dev]
+```
+
+### System Dependencies
+
+**ExifTool** (required for EXIF extraction):
+
+```bash
+# macOS
+brew install exiftool
+
+# Ubuntu/Debian
+sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
+```
+
+**FFmpeg** (required for video processing):
+
+```bash
+# macOS
+brew install ffmpeg
+
+# Ubuntu/Debian
+sudo apt-get update && sudo apt-get install -y ffmpeg
+```
+
+---
 
 ## Quick Start
 
-### 1. Implement the Protocols
+### Standalone Algorithm Usage
 
-You need to implement two protocols to integrate with your system:
-
-#### JobRepository Protocol
+Use algorithms directly without FastAPI infrastructure:
 
 ```python
-from typing import Optional, List
-from cl_ml_tools.common.schemas import Job
+from cl_ml_tools.algorithms import image_thumbnail, ClipEmbedder
 
-class SQLiteJobRepository:
-    """SQLite implementation of JobRepository protocol."""
-    
-    def __init__(self, db_path: str):
-        import sqlite3
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self._create_tables()
-    
-    def _create_tables(self):
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS jobs (
-                job_id TEXT PRIMARY KEY,
-                task_type TEXT NOT NULL,
-                params TEXT NOT NULL,
-                status TEXT DEFAULT 'queued',
-                progress INTEGER DEFAULT 0,
-                task_output TEXT,
-                error_message TEXT,
-                created_by TEXT,
-                priority INTEGER DEFAULT 5,
-                created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
-            )
-        """)
-        self.conn.commit()
-    
-    def add_job(
-        self, 
-        job: Job, 
-        created_by: Optional[str] = None, 
-        priority: Optional[int] = None
-    ) -> str:
-        """Save job to database."""
-        import json
-        self.conn.execute(
-            """INSERT INTO jobs (job_id, task_type, params, status, created_by, priority)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (job.job_id, job.task_type, json.dumps(job.params), 
-             job.status, created_by, priority or 5)
-        )
-        self.conn.commit()
-        return job.job_id
-    
-    def get_job(self, job_id: str) -> Optional[Job]:
-        """Get job by ID."""
-        import json
-        cursor = self.conn.execute(
-            "SELECT * FROM jobs WHERE job_id = ?", (job_id,)
-        )
-        row = cursor.fetchone()
-        if row:
-            return Job(
-                job_id=row['job_id'],
-                task_type=row['task_type'],
-                params=json.loads(row['params']),
-                status=row['status'],
-                progress=row['progress'],
-                task_output=json.loads(row['task_output']) if row['task_output'] else None,
-                error_message=row['error_message']
-            )
-        return None
-    
-    def update_job(self, job_id: str, **kwargs) -> bool:
-        """Update job fields."""
-        import json
-        if 'task_output' in kwargs and kwargs['task_output'] is not None:
-            kwargs['task_output'] = json.dumps(kwargs['task_output'])
-        
-        set_clause = ', '.join(f"{k} = ?" for k in kwargs.keys())
-        values = list(kwargs.values()) + [job_id]
-        
-        cursor = self.conn.execute(
-            f"UPDATE jobs SET {set_clause} WHERE job_id = ?", values
-        )
-        self.conn.commit()
-        return cursor.rowcount > 0
-    
-    def fetch_next_job(self, task_types: List[str]) -> Optional[Job]:
-        """
-        Atomically claim next queued job.
-        
-        Uses BEGIN IMMEDIATE to acquire write lock, preventing race conditions
-        when multiple workers are running.
-        """
-        import json
-        cursor = self.conn.cursor()
-        cursor.execute("BEGIN IMMEDIATE")
-        
-        try:
-            placeholders = ','.join('?' * len(task_types))
-            cursor.execute(f"""
-                SELECT * FROM jobs 
-                WHERE status = 'queued' AND task_type IN ({placeholders})
-                ORDER BY priority DESC, created_at ASC
-                LIMIT 1
-            """, task_types)
-            
-            row = cursor.fetchone()
-            if row:
-                cursor.execute(
-                    "UPDATE jobs SET status = 'processing' WHERE job_id = ?",
-                    (row['job_id'],)
-                )
-                self.conn.commit()
-                return Job(
-                    job_id=row['job_id'],
-                    task_type=row['task_type'],
-                    params=json.loads(row['params']),
-                    status='processing',  # Return with updated status
-                    progress=row['progress'],
-                    task_output=json.loads(row['task_output']) if row['task_output'] else None,
-                    error_message=row['error_message']
-                )
-            
-            self.conn.rollback()
-            return None
-        except Exception:
-            self.conn.rollback()
-            raise
-    
-    def delete_job(self, job_id: str) -> bool:
-        """Delete job from database."""
-        cursor = self.conn.execute(
-            "DELETE FROM jobs WHERE job_id = ?", (job_id,)
-        )
-        self.conn.commit()
-        return cursor.rowcount > 0
+# Generate a thumbnail
+image_thumbnail(
+    input_path="/path/to/photo.jpg",
+    output_path="/path/to/thumb.jpg",
+    width=256,
+    height=256,
+    maintain_aspect_ratio=True
+)
+
+# Generate CLIP embedding for semantic search
+embedder = ClipEmbedder()
+embedding = embedder.embed("/path/to/image.jpg")
+print(f"Embedding shape: {embedding.shape}")  # (512,)
 ```
 
-#### FileStorage Protocol
+### FastAPI Server Setup
 
-```python
-from pathlib import Path
-import hashlib
-import shutil
-
-class LocalFileStorage:
-    """Local filesystem implementation of FileStorage protocol."""
-    
-    def __init__(self, base_dir: str):
-        self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-    
-    def create_job_directory(self, job_id: str) -> Path:
-        """Create job directory with input/output subdirs."""
-        job_dir = self.base_dir / "jobs" / job_id
-        (job_dir / "input").mkdir(parents=True, exist_ok=True)
-        (job_dir / "output").mkdir(parents=True, exist_ok=True)
-        return job_dir
-    
-    def get_input_path(self, job_id: str) -> Path:
-        """Get absolute path to job's input directory."""
-        return self.base_dir / "jobs" / job_id / "input"
-    
-    def get_output_path(self, job_id: str) -> Path:
-        """Get absolute path to job's output directory."""
-        return self.base_dir / "jobs" / job_id / "output"
-    
-    async def save_input_file(self, job_id: str, filename: str, file) -> dict:
-        """Save uploaded file to job's input directory."""
-        input_dir = self.get_input_path(job_id)
-        file_path = input_dir / filename
-        
-        # Read and save file
-        content = await file.read()
-        file_path.write_bytes(content)
-        
-        # Calculate hash
-        file_hash = hashlib.sha256(content).hexdigest()
-        
-        return {
-            "filename": filename,
-            "path": str(file_path),  # Absolute path
-            "size": len(content),
-            "hash": file_hash
-        }
-    
-    def cleanup_job(self, job_id: str) -> bool:
-        """Delete job directory and all files."""
-        job_dir = self.base_dir / "jobs" / job_id
-        if job_dir.exists():
-            shutil.rmtree(job_dir)
-            return True
-        return False
-```
-
-### 2. Setup Master (API Server)
+Create a production-ready API server:
 
 ```python
 from fastapi import FastAPI
-from cl_ml_tools.master import create_master_router
+from cl_ml_tools import create_master_router, JobRepository, JobStorage
 
-# Your protocol implementations
-from my_app.repository import SQLiteJobRepository
-from my_app.storage import LocalFileStorage
+app = FastAPI(title="Media Processing API")
 
-app = FastAPI(title="ML Tools")
+# Implement your persistence layer
+class MyJobRepository(JobRepository):
+    # Implement: create_job, get_job, update_job, list_jobs, delete_job
+    pass
 
-# Initialize implementations
-repository = SQLiteJobRepository("./jobs.db")
-file_storage = LocalFileStorage("./media_storage")
+class MyFileStorage(JobStorage):
+    # Implement: save_file, get_file, delete_file
+    pass
 
-# Auth dependency (implement your own)
+repository = MyJobRepository()
+file_storage = MyFileStorage()
+
+# Optional: Authentication
 async def get_current_user():
-    return None  # Or return user object from JWT/session
+    return None  # Or return user from JWT/session
 
-# Mount all plugin routes (auto-discovered from entry points)
+# Auto-discover and mount all 9 plugin routes
 app.include_router(
     create_master_router(repository, file_storage, get_current_user),
     prefix="/api"
 )
 
-# Optional: Add job status endpoint
-@app.get("/api/jobs/{job_id}")
-async def get_job_status(job_id: str):
-    job = repository.get_job(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    return job.model_dump()
+# Run with: uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Run the server:
-```bash
-uvicorn my_app.main:app --reload
+---
+
+## FastAPI Routes Reference
+
+All routes return a `JobCreatedResponse` with structure:
+
+```json
+{
+  "job_id": "uuid-string",
+  "status": "queued",
+  "task_type": "plugin_name",
+  "created_at": "2025-12-18T10:30:00Z"
+}
 ```
 
-> **Note**: Available API endpoints are auto-generated from registered plugins. See `pyproject.toml` entry points and `src/cl_ml_tools/plugins/` for available task types.
+### 1. media_thumbnail
 
-### 3. Setup Worker
+**POST** `/jobs/media_thumbnail`
 
-```python
-import asyncio
-from cl_ml_tools.worker import Worker
+Generate thumbnails from images or videos with automatic media type detection.
 
-# Same repository as master (shared database)
-from my_app.repository import SQLiteJobRepository
+**Parameters:**
+- `file` (required): Image or video file (multipart/form-data)
+- `width` (required): Target width in pixels (integer > 0)
+- `height` (required): Target height in pixels (integer > 0)
+- `maintain_aspect_ratio` (optional): Maintain aspect ratio (boolean, default: false)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
 
-repository = SQLiteJobRepository("./jobs.db")
-worker = Worker(repository)
-
-async def run_worker():
-    """Process jobs forever."""
-    print(f"Worker started. Supported tasks: {worker.get_supported_task_types()}")
-    
-    while True:
-        # Process one job (or all supported types if None)
-        processed = await worker.run_once()
-        
-        if not processed:
-            # No jobs available, wait before polling again
-            await asyncio.sleep(1.0)
-
-if __name__ == "__main__":
-    asyncio.run(run_worker())
-```
-
-Run the worker:
-```bash
-python -m my_app.worker
-```
-
-## Creating Custom Plugins
-
-### 1. Create Plugin Structure
-
-```
-my_app/plugins/watermark/
-├── __init__.py
-├── schema.py
-├── task.py
-└── routes.py
-```
-
-### 2. Define Parameters Schema
-
-```python
-# schema.py
-from cl_ml_tools.common.schemas import BaseJobParams
-
-class WatermarkParams(BaseJobParams):
-    watermark_text: str
-    position: str = "bottom-right"  # top-left, top-right, bottom-left, bottom-right
-    opacity: float = 0.5
-```
-
-### 3. Implement Task
-
-```python
-# task.py
-from cl_ml_tools.common.compute_module import ComputeModule
-from cl_ml_tools.common.schemas import Job
-from .schema import WatermarkParams
-
-class WatermarkTask(ComputeModule):
-    @property
-    def task_type(self) -> str:
-        return "watermark"
-    
-    def get_schema(self):
-        return WatermarkParams
-    
-    async def execute(self, job: Job, params: WatermarkParams, progress_callback=None):
-        from PIL import Image, ImageDraw, ImageFont
-        
-        try:
-            for i, (input_path, output_path) in enumerate(
-                zip(params.input_paths, params.output_paths)
-            ):
-                # Load image
-                img = Image.open(input_path)
-                
-                # Add watermark
-                draw = ImageDraw.Draw(img)
-                draw.text((10, 10), params.watermark_text, fill=(255, 255, 255, 128))
-                
-                # Save
-                img.save(output_path)
-                
-                # Report progress
-                if progress_callback:
-                    progress_callback(int((i + 1) / len(params.input_paths) * 100))
-            
-            return {
-                "status": "ok",
-                "task_output": {"processed_files": params.output_paths}
-            }
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
-```
-
-### 4. Create Route Factory
-
-```python
-# routes.py
-from fastapi import APIRouter, UploadFile, File, Form, Depends
-from typing import Callable
-from uuid import uuid4
-
-from cl_ml_tools.common.job_repository import JobRepository
-from cl_ml_tools.common.file_storage import FileStorage
-from cl_ml_tools.common.schemas import Job
-
-def create_router(
-    repository: JobRepository,
-    file_storage: FileStorage,
-    get_current_user: Callable
-) -> APIRouter:
-    router = APIRouter()
-
-    @router.post("/jobs/watermark")
-    async def create_watermark_job(
-        file: UploadFile = File(...),
-        watermark_text: str = Form(...),
-        position: str = Form("bottom-right"),
-        opacity: float = Form(0.5),
-        priority: int = Form(5),
-        user = Depends(get_current_user)
-    ):
-        job_id = str(uuid4())
-        
-        file_storage.create_job_directory(job_id)
-        file_info = await file_storage.save_input_file(job_id, file.filename, file)
-        
-        input_path = file_info["path"]
-        output_path = str(file_storage.get_output_path(job_id) / f"watermarked_{file.filename}")
-        
-        job = Job(
-            job_id=job_id,
-            task_type="watermark",
-            params={
-                "input_paths": [input_path],
-                "output_paths": [output_path],
-                "watermark_text": watermark_text,
-                "position": position,
-                "opacity": opacity
-            }
-        )
-        repository.add_job(job, created_by=user.id if user else None, priority=priority)
-        
-        return {"job_id": job_id, "status": "queued"}
-
-    return router
-```
-
-### 5. Register Plugin
-
-Add to your `pyproject.toml`:
-
-```toml
-[project.entry-points."cl_ml_tools.tasks"]
-watermark = "my_app.plugins.watermark.task:WatermarkTask"
-
-[project.entry-points."cl_ml_tools.routes"]
-watermark = "my_app.plugins.watermark.routes:create_router"
-```
-
-The plugin is now auto-discovered by both master and worker!
-
-## Database-Specific Implementation Notes
-
-### PostgreSQL / MySQL
-
-Use `FOR UPDATE SKIP LOCKED` for efficient concurrent job claiming:
-
-```python
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-def fetch_next_job(self, task_types: List[str], session: Session) -> Optional[Job]:
-    stmt = (
-        select(JobModel)
-        .where(JobModel.status == 'queued')
-        .where(JobModel.task_type.in_(task_types))
-        .order_by(JobModel.priority.desc(), JobModel.created_at.asc())
-        .limit(1)
-        .with_for_update(skip_locked=True)  # Skip locked rows
-    )
-    
-    job = session.execute(stmt).scalar_one_or_none()
-    if job:
-        job.status = 'processing'
-        session.commit()
-        return Job.model_validate(job)
-    return None
-```
-
-### SQLite
-
-Use `BEGIN IMMEDIATE` for write lock (shown in Quick Start example above).
-
-> **Note**: SQLite locks the entire database, not individual rows. For high concurrency, use PostgreSQL or MySQL in production.
-
-## Available Plugins
-
-### Built-in Media Processing Plugins
-
-| Plugin | Description | Input | Output | ONNX Model |
-|--------|-------------|-------|--------|------------|
-| **hash** | Generate cryptographic hashes for images/videos | Media files | MD5/SHA256/Perceptual hashes | No |
-| **media_thumbnail** | Extract video thumbnails or resize images | Images, videos | Thumbnail images | No |
-| **image_conversion** | Convert between image formats (JPEG, PNG, WebP, HEIF) | Images | Converted images | No |
-| **hls_streaming** | Convert videos to HLS streaming format | Videos | M3U8 playlist + segments | No |
-| **exif** | Extract EXIF metadata from images | Images | Structured metadata | No |
-
-### ML/AI Plugins (ONNX-based)
-
-| Plugin | Description | Model | Embedding Size | Use Cases |
-|--------|-------------|-------|----------------|-----------|
-| **face_detection** | Detect faces with bounding boxes | MediaPipe Face Detection | N/A | Face localization, face counting |
-| **face_embedding** | Generate face embeddings for recognition | ArcFace (MobileFaceNet) | 512D | Face recognition, verification, clustering |
-| **dino_embedding** | Visual similarity embeddings | DINOv2 ViT-S/14 | 384D | Image similarity search, clustering, retrieval |
-| **clip_embedding** | Semantic image embeddings | MobileCLIP-S2 | 512D | Text-image search, zero-shot classification |
-
-**See individual plugin READMEs** in [`src/cl_ml_tools/plugins/`](src/cl_ml_tools/plugins/) for detailed documentation, parameters, and usage examples.
-
-**Registered plugins** are listed in [`pyproject.toml`](pyproject.toml) under `[project.entry-points."cl_ml_tools.tasks"]`.
-
-### ONNX Model Management
-
-ML plugins use ONNX Runtime for CPU-optimized inference. Models are automatically downloaded on first use:
-
-**Model Cache Location:** `~/.cache/cl_ml_tools/models/`
-
-**Download-on-Demand:** Models download from original sources (Hugging Face, etc.) when the plugin is first initialized. No pre-installation required.
-
-**Offline Usage:** After first download, models are cached locally and work offline.
-
-**Model Sources:**
-- **MediaPipe Face Detection**: [Hugging Face - qualcomm/MediaPipe-Face-Detection](https://huggingface.co/qualcomm/MediaPipe-Face-Detection)
-- **ArcFace (Face Embedding)**: [Hugging Face - garavv/arcface-onnx](https://huggingface.co/garavv/arcface-onnx)
-- **DINOv2**: [Hugging Face - RoundtTble/dinov2_vits14_onnx](https://huggingface.co/RoundtTble/dinov2_vits14_onnx)
-- **MobileCLIP**: Apple ml-mobileclip (requires manual ONNX conversion - see plugin README)
-
-**Licensing:** Each model has its own license. Check model sources before commercial use:
-- MediaPipe: Apache 2.0
-- ArcFace: Check model card
-- DINOv2: Apache 2.0
-- MobileCLIP: Apple Sample Code License
-
-**System Requirements:**
-- CPU-optimized (no GPU required)
-- ~100-200ms inference time per image on modern CPUs
-- Models range from 16-40 MB each
-
-### Plugin Algorithm Organization
-
-Plugins that implement computation algorithms follow this structure:
-
-```
-plugin_name/
-├── __init__.py          # Public exports
-├── schema.py            # Pydantic parameter models
-├── task.py              # ComputeModule implementation
-├── routes.py            # FastAPI route factory
-├── algo/                # Pure computation functions (framework-agnostic)
-│   ├── __init__.py
-│   ├── algorithm1.py
-│   └── algorithm2.py
-└── README.md            # Plugin documentation
-```
-
-The `algo/` directory contains pure Python functions that:
-- Are framework-agnostic (no FastAPI, no Pydantic)
-- Have single responsibility (one function = one computation)
-- Can be tested independently
-- Can be reused in other contexts
-
-Examples:
-- **hash plugin**: `algo/image.py`, `algo/video.py`, `algo/md5.py`, `algo/generic.py`
-- **media_thumbnail plugin**: `algo/image_thumbnail.py`, `algo/video_thumbnail.py`
-- **image_conversion plugin**: `algo/image_convert.py`
-
-### Development Setup with uv
-
-This project uses `uv` for fast, reliable dependency management:
+**Example:**
 
 ```bash
-# Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create virtual environment and install dependencies
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e ".[dev]"
-
-# Run type checking
-basedpyright
-
-# Run linting
-ruff check
-
-# Run tests
-pytest
+curl -X POST "http://localhost:8000/api/jobs/media_thumbnail" \
+  -F "file=@photo.jpg" \
+  -F "width=256" \
+  -F "height=256" \
+  -F "maintain_aspect_ratio=true" \
+  -F "priority=5"
 ```
 
-## Architecture
+**Response:**
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Your Application                        │
-├─────────────────────────────────────────────────────────────┤
-│  SQLiteJobRepository implements JobRepository               │
-│  LocalFileStorage implements FileStorage                    │
-│  get_current_user() for authentication                      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      cl_ml_tools                         │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Protocols:          Base Class:                            │
-│  ┌──────────────┐    ┌────────────────────────────────┐    │
-│  │JobRepository │    │ ComputeModule (ABC)            │    │
-│  │FileStorage   │    │ - task_type                    │    │
-│  └──────────────┘    │ - get_schema()                 │    │
-│                      │ - execute(job, params, cb)     │    │
-│                      └────────────────────────────────┘    │
-│                                   ▲                         │
-│  Plugins:                         │ extends                 │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │ See src/cl_ml_tools/plugins/ for available tasks│    │
-│  └────────────────────────────────────────────────────┘    │
-│                                                             │
-│  Runtime:                                                   │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Worker - orchestrates job execution                 │   │
-│  │ create_master_router() - aggregates plugin routes   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```json
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "media_thumbnail",
+  "created_at": "2025-12-18T10:30:00Z"
+}
 ```
 
-## License
+**Output (when job completes):**
+```json
+{
+  "media_type": "image",
+  "output_path": "/path/to/thumbnail.jpg"
+}
+```
 
-MIT License
+---
 
-## Migration Notes
+### 2. image_conversion
 
-### Plugin Naming Change: `resize` → `media_thumbnail`
+**POST** `/jobs/image_conversion`
 
-The `resize` plugin has been renamed to `media_thumbnail` to better reflect its functionality (video thumbnail extraction + image resizing).
+Convert images between formats with quality control.
 
-**If you're upgrading from an older version:**
-- Update entry point references in `pyproject.toml`
-- Update job creation calls from `/jobs/resize` to `/jobs/media_thumbnail`
-- The plugin functionality remains unchanged
+**Parameters:**
+- `file` (required): Image file to convert
+- `format` (required): Target format - one of: `png`, `jpg`, `jpeg`, `webp`, `gif`, `bmp`, `tiff`
+- `quality` (optional): Output quality 1-100 for lossy formats (integer, default: 85)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
 
-## Contributing
+**Example:**
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
+```bash
+curl -X POST "http://localhost:8000/api/jobs/image_conversion" \
+  -F "file=@image.png" \
+  -F "format=webp" \
+  -F "quality=90" \
+  -F "priority=5"
+```
 
-Quick steps:
-1. Fork the repository
-2. Create a feature branch
-3. Add your plugin to `src/cl_ml_tools/plugins/`
-4. Register entry points in `pyproject.toml`
-5. Add a README.md in your plugin directory documenting parameters
-6. Add comprehensive tests (see existing plugin tests for patterns)
-7. Submit a pull request
+**Response:**
+
+```json
+{
+  "job_id": "660e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "image_conversion",
+  "created_at": "2025-12-18T10:31:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "output_path": "/path/to/converted.webp"
+}
+```
+
+---
+
+### 3. hash
+
+**POST** `/jobs/hash`
+
+Compute cryptographic or perceptual hashes for files.
+
+**Parameters:**
+- `file` (required): File to hash
+- `algorithm` (optional): Hash algorithm - `sha512` or `md5` (default: `sha512`)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/jobs/hash" \
+  -F "file=@document.pdf" \
+  -F "algorithm=sha512" \
+  -F "priority=5"
+```
+
+**Response:**
+
+```json
+{
+  "job_id": "770e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "hash",
+  "created_at": "2025-12-18T10:32:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "media_type": "application/pdf",
+  "hash": "abc123...",
+  "algorithm": "sha512"
+}
+```
+
+---
+
+### 4. exif
+
+**POST** `/jobs/exif`
+
+Extract EXIF metadata from images using ExifTool.
+
+**Parameters:**
+- `file` (required): Image file
+- `tags` (optional): Comma-separated EXIF tags to extract (empty string extracts all tags)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/jobs/exif" \
+  -F "file=@photo.jpg" \
+  -F "tags=Make,Model,DateTimeOriginal,GPSLatitude,GPSLongitude" \
+  -F "priority=5"
+```
+
+**Response:**
+
+```json
+{
+  "job_id": "880e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "exif",
+  "created_at": "2025-12-18T10:33:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "make": "Canon",
+  "model": "EOS R5",
+  "date_time_original": "2025:12:18 10:30:00",
+  "create_date": "2025:12:18 10:30:00",
+  "image_width": 4500,
+  "image_height": 3000,
+  "orientation": 1,
+  "iso": 400,
+  "f_number": 2.8,
+  "exposure_time": "1/125",
+  "focal_length": 50.0,
+  "gps_latitude": 37.7749,
+  "gps_longitude": -122.4194,
+  "gps_altitude": 10.5,
+  "software": "Adobe Lightroom",
+  "raw_metadata": {
+    "Make": "Canon",
+    "Model": "EOS R5"
+  }
+}
+```
+
+---
+
+### 5. clip_embedding
+
+**POST** `/jobs/clip_embedding`
+
+Generate MobileCLIP semantic embeddings for image similarity search.
+
+**Parameters:**
+- `file` (required): Image file
+- `normalize` (optional): L2-normalize embedding (boolean, default: true)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/jobs/clip_embedding" \
+  -F "file=@image.jpg" \
+  -F "normalize=true" \
+  -F "priority=5"
+```
+
+**Response:**
+
+```json
+{
+  "job_id": "990e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "clip_embedding",
+  "created_at": "2025-12-18T10:34:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "embedding_dim": 512,
+  "normalized": true,
+  "output_path": "/path/to/clip_embedding.npy"
+}
+```
+
+---
+
+### 6. dino_embedding
+
+**POST** `/jobs/dino_embedding`
+
+Generate DINOv2 embeddings for visual similarity search.
+
+**Parameters:**
+- `file` (required): Image file
+- `normalize` (optional): L2-normalize embedding (boolean, default: true)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/jobs/dino_embedding" \
+  -F "file=@image.jpg" \
+  -F "normalize=true" \
+  -F "priority=5"
+```
+
+**Response:**
+
+```json
+{
+  "job_id": "aa0e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "dino_embedding",
+  "created_at": "2025-12-18T10:35:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "embedding_dim": 384,
+  "normalized": true,
+  "output_path": "/path/to/dino_embedding.npy"
+}
+```
+
+---
+
+### 7. face_detection
+
+**POST** `/jobs/face_detection`
+
+Detect faces in images using YuNet with normalized bounding boxes.
+
+**Parameters:**
+- `file` (required): Image file
+- `confidence_threshold` (optional): Minimum confidence 0.0-1.0 (float, default: 0.7)
+- `nms_threshold` (optional): Non-maximum suppression threshold 0.0-1.0 (float, default: 0.4)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/jobs/face_detection" \
+  -F "file=@group_photo.jpg" \
+  -F "confidence_threshold=0.7" \
+  -F "nms_threshold=0.4" \
+  -F "priority=5"
+```
+
+**Response:**
+
+```json
+{
+  "job_id": "bb0e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "face_detection",
+  "created_at": "2025-12-18T10:36:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "faces": [
+    {
+      "x1": 0.25,
+      "y1": 0.30,
+      "x2": 0.45,
+      "y2": 0.60,
+      "confidence": 0.98
+    },
+    {
+      "x1": 0.60,
+      "y1": 0.25,
+      "x2": 0.80,
+      "y2": 0.55,
+      "confidence": 0.95
+    }
+  ],
+  "num_faces": 2,
+  "image_width": 1920,
+  "image_height": 1080
+}
+```
+
+---
+
+### 8. face_embedding
+
+**POST** `/jobs/face_embedding`
+
+Generate ArcFace embeddings from cropped face images for face recognition.
+
+**Parameters:**
+- `file` (required): Cropped face image file
+- `normalize` (optional): L2-normalize embedding (boolean, default: true)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/jobs/face_embedding" \
+  -F "file=@face_crop.jpg" \
+  -F "normalize=true" \
+  -F "priority=5"
+```
+
+**Response:**
+
+```json
+{
+  "job_id": "cc0e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "face_embedding",
+  "created_at": "2025-12-18T10:37:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "embedding_dim": 128,
+  "normalized": true,
+  "quality_score": 0.89,
+  "output_path": "/path/to/face_embedding.npy"
+}
+```
+
+---
+
+### 9. hls_streaming
+
+**POST** `/jobs/hls_streaming`
+
+Convert videos to multi-quality HLS streaming format with adaptive bitrate.
+
+**Parameters:**
+- `file` (required): Video file
+- `variants` (optional): JSON array of quality variants (string, see example below)
+- `include_original` (optional): Include original quality (boolean, default: false)
+- `priority` (optional): Job priority 0-10 (integer, default: 5)
+
+**Default variants:**
+```json
+[
+  {"resolution": 720, "bitrate": 3500},
+  {"resolution": 480, "bitrate": 1500},
+  {"resolution": 240, "bitrate": 800}
+]
+```
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/api/jobs/hls_streaming" \
+  -F "file=@video.mp4" \
+  -F 'variants=[{"resolution":1080,"bitrate":5000},{"resolution":720,"bitrate":3500},{"resolution":480,"bitrate":1500}]' \
+  -F "include_original=false" \
+  -F "priority=5"
+```
+
+**Response:**
+
+```json
+{
+  "job_id": "dd0e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "task_type": "hls_streaming",
+  "created_at": "2025-12-18T10:38:00Z"
+}
+```
+
+**Output (when job completes):**
+```json
+{
+  "master_playlist": "/path/to/output/master.m3u8",
+  "variants_generated": 3,
+  "total_segments": 45,
+  "include_original": false
+}
+```
+
+---
+
+## Algorithm API Reference
+
+Use algorithms directly without the FastAPI job infrastructure. All algorithms are exported from `cl_ml_tools.algorithms`.
+
+### Image Processing
+
+#### `image_thumbnail(input_path, output_path, width=None, height=None, maintain_aspect_ratio=True)`
+
+Generate image thumbnail with optional aspect ratio preservation.
+
+```python
+from cl_ml_tools.algorithms import image_thumbnail
+
+image_thumbnail(
+    input_path="/path/to/image.jpg",
+    output_path="/path/to/thumb.jpg",
+    width=256,
+    height=256,
+    maintain_aspect_ratio=True
+)
+```
+
+#### `video_thumbnail(input_path, output_path, width=None, height=None, timestamp=1.0)`
+
+Extract video frame as thumbnail at specified timestamp.
+
+```python
+from cl_ml_tools.algorithms import video_thumbnail
+
+video_thumbnail(
+    input_path="/path/to/video.mp4",
+    output_path="/path/to/thumb.jpg",
+    width=256,
+    height=256,
+    timestamp=1.0  # 1 second into video
+)
+```
+
+#### `convert_image(input_path, output_path, format="png", quality=85)`
+
+Convert image to different format.
+
+```python
+from cl_ml_tools.algorithms import convert_image
+
+convert_image(
+    input_path="/path/to/image.png",
+    output_path="/path/to/image.webp",
+    format="webp",
+    quality=90
+)
+```
+
+---
+
+### Hashing
+
+#### `get_md5_hexdigest(file_like)`
+
+Compute MD5 hash of file-like object.
+
+```python
+from cl_ml_tools.algorithms import get_md5_hexdigest
+from io import BytesIO
+
+with open("/path/to/file.bin", "rb") as f:
+    md5 = get_md5_hexdigest(BytesIO(f.read()))
+    print(f"MD5: {md5}")
+```
+
+#### `sha512hash_image(file_like)`
+
+Compute perceptual SHA512 hash of image.
+
+```python
+from cl_ml_tools.algorithms import sha512hash_image
+
+with open("/path/to/image.jpg", "rb") as f:
+    img_hash, metadata = sha512hash_image(f)
+    print(f"Hash: {img_hash}")
+```
+
+#### `sha512hash_video2(input_path)`
+
+Compute SHA512 hash from video frames.
+
+```python
+from cl_ml_tools.algorithms import sha512hash_video2
+
+video_hash = sha512hash_video2("/path/to/video.mp4")
+print(f"Video hash: {video_hash}")
+```
+
+#### `sha512hash_generic(file_like)`
+
+Generic SHA512 hash for any file.
+
+```python
+from cl_ml_tools.algorithms import sha512hash_generic
+
+with open("/path/to/file.dat", "rb") as f:
+    file_hash = sha512hash_generic(f)
+```
+
+---
+
+### EXIF Metadata
+
+#### `ExifToolWrapper`
+
+Extract EXIF metadata using ExifTool.
+
+```python
+from cl_ml_tools.algorithms import ExifToolWrapper
+
+wrapper = ExifToolWrapper()
+metadata = wrapper.extract("/path/to/image.jpg", tags=["Make", "Model", "DateTimeOriginal"])
+print(metadata)
+```
+
+---
+
+### Embeddings
+
+#### `ClipEmbedder`
+
+Generate MobileCLIP semantic embeddings (512-dim).
+
+```python
+from cl_ml_tools.algorithms import ClipEmbedder
+
+embedder = ClipEmbedder()
+embedding = embedder.embed("/path/to/image.jpg", normalize=True)
+print(f"Shape: {embedding.shape}")  # (512,)
+```
+
+#### `DinoEmbedder`
+
+Generate DINOv2 visual similarity embeddings (384-dim).
+
+```python
+from cl_ml_tools.algorithms import DinoEmbedder
+
+embedder = DinoEmbedder()
+embedding = embedder.embed("/path/to/image.jpg", normalize=True)
+print(f"Shape: {embedding.shape}")  # (384,)
+```
+
+---
+
+### Face Detection & Recognition
+
+#### `FaceDetector`
+
+Detect faces with YuNet.
+
+```python
+from cl_ml_tools.algorithms import FaceDetector
+
+detector = FaceDetector()
+faces = detector.detect(
+    "/path/to/image.jpg",
+    confidence_threshold=0.7,
+    nms_threshold=0.4
+)
+
+for face in faces:
+    print(f"Box: ({face.x1}, {face.y1}, {face.x2}, {face.y2})")
+    print(f"Confidence: {face.confidence}")
+```
+
+#### `FaceEmbedder`
+
+Generate ArcFace embeddings for face recognition.
+
+```python
+from cl_ml_tools.algorithms import FaceEmbedder
+
+embedder = FaceEmbedder()
+embedding, quality = embedder.embed("/path/to/face_crop.jpg", normalize=True)
+print(f"Embedding shape: {embedding.shape}")  # (128,) or (512,)
+print(f"Quality score: {quality}")
+```
+
+---
+
+### HLS Streaming
+
+#### `HLSStreamGenerator` and `HLSVariant`
+
+Generate HLS streaming playlists with multiple quality variants.
+
+```python
+from cl_ml_tools.algorithms import HLSStreamGenerator, HLSVariant
+
+variants = [
+    HLSVariant(resolution=1080, bitrate=5000),
+    HLSVariant(resolution=720, bitrate=3500),
+    HLSVariant(resolution=480, bitrate=1500),
+]
+
+generator = HLSStreamGenerator()
+output_dir = generator.generate(
+    input_path="/path/to/video.mp4",
+    output_dir="/path/to/output",
+    variants=variants,
+    include_original=False
+)
+print(f"HLS playlist: {output_dir}/master.m3u8")
+```
+
+#### `validate_hls_directory(directory)`
+
+Validate HLS output directory structure.
+
+```python
+from cl_ml_tools.algorithms import validate_hls_directory
+
+is_valid = validate_hls_directory("/path/to/hls_output")
+```
+
+---
+
+### Utilities
+
+#### `MediaType` enum and media detection
+
+```python
+from cl_ml_tools.algorithms import MediaType, determine_media_type, determine_mime
+
+media_type = determine_media_type("/path/to/file.jpg")
+print(media_type)  # MediaType.IMAGE
+
+mime = determine_mime("/path/to/file.jpg")
+print(mime)  # "image/jpeg"
+```
+
+#### `RandomMediaGenerator`
+
+Generate random test media for testing.
+
+```python
+from cl_ml_tools.algorithms import RandomMediaGenerator
+
+generator = RandomMediaGenerator()
+image_path = generator.generate_image(width=1920, height=1080)
+video_path = generator.generate_video(duration=10.0)
+```
+
+---
+
+## Configuration
+
+### Model Downloads
+
+Models are automatically downloaded on first use to:
+
+```
+~/.cache/cl_ml_tools/models/
+```
+
+Downloaded models:
+- **MobileCLIP S2** (~50 MB) - Semantic image embeddings
+- **DINOv2 ViT-S** (~85 MB) - Visual similarity embeddings
+- **YuNet** (~1 MB) - Face detection
+- **ArcFace** (~130 MB) - Face recognition embeddings
+
+### Environment Variables
+
+Configure optional settings:
+
+```bash
+# Model cache directory
+export CL_ML_TOOLS_CACHE_DIR="/custom/cache/path"
+
+# MQTT broker for distributed workers
+export MQTT_BROKER_HOST="localhost"
+export MQTT_BROKER_PORT="1883"
+export MQTT_USERNAME="user"
+export MQTT_PASSWORD="password"
+```
+
+### MQTT Setup (Optional)
+
+For distributed worker deployments, configure MQTT:
+
+```python
+from cl_ml_tools import Worker, get_broadcaster
+
+# Start MQTT broadcaster
+broadcaster = get_broadcaster(
+    host="localhost",
+    port=1883,
+    username="user",
+    password="pass"
+)
+
+# Run worker with MQTT notifications
+worker = Worker(repository, file_storage, broadcaster)
+await worker.start()
+```
+
+---
+
+## Hardware Support
+
+### Raspberry Pi 5 + Hailo 8 AI Hat+
+
+This package is optimized for edge deployment on Raspberry Pi 5 with Hailo 8 AI Hat+ accelerator.
+
+**Considerations:**
+- Models use ONNX Runtime for efficient CPU/NPU inference
+- Face detection and embeddings optimized for 8GB RAM
+- Video processing benefits from hardware H.264 encoding
+- Adjust worker concurrency based on thermal limits
+
+**Recommended settings for RPi5:**
+
+```python
+# Limit concurrent jobs to prevent thermal throttling
+worker = Worker(
+    repository,
+    file_storage,
+    max_workers=2,  # Adjust based on workload
+    enable_hardware_accel=True
+)
+```
+
+**Memory notes:**
+- CLIP/DINO embedders: ~200-300 MB per model
+- Face detection: ~50 MB
+- HLS streaming: Minimal (FFmpeg handles encoding)
+
+---
+
+## Testing
+
+The package includes a comprehensive test suite (350+ tests) covering all plugins and core functionality.
+
+**Coverage Status: 91.42%**
+
+### Running Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage report
+uv run pytest --cov=cl_ml_tools tests/
+```
+
+### Test Organization
+
+- `tests/plugins/`: Plugin-specific algorithm and API tests
+- `tests/utils/`: Utility function tests
+- `tests/core/`: Worker runtime and protocol tests
+- `tests/integration/`: End-to-end multi-plugin workflows
+
+For more details on testing, see [tests/README.md](tests/README.md).
+
+---
+
+## License & Contributing
+
+### License
+
+**MIT License**
+
+Copyright (c) 2025 Ananda Sarangaram
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Fork the repository** and create a feature branch
+2. **Write tests** for new functionality (maintain 85%+ coverage)
+3. **Follow code style**: Run `ruff` for linting
+4. **Type hints**: Use full type annotations (checked with `basedpyright`)
+5. **Documentation**: Update README and docstrings for API changes
+6. **Commit messages**: Use conventional commits format
+
+**Development setup:**
+
+```bash
+git clone https://github.com/yourusername/cl_ml_tools.git
+cd cl_ml_tools
+pip install -e .[dev]
+pytest  # Ensure tests pass
+```
+
+**Adding a new plugin:**
+
+1. Create plugin directory: `src/cl_ml_tools/plugins/my_plugin/`
+2. Implement: `task.py`, `schema.py`, `routes.py`, `algo/`
+3. Register in `pyproject.toml` entry points
+4. Add tests in `tests/plugins/test_my_plugin.py`
+5. Update this README
+
+---
+
+**Questions or issues?** Open an issue on GitHub or contact the maintainer.

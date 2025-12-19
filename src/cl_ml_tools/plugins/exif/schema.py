@@ -1,13 +1,11 @@
 """EXIF metadata extraction parameters and output schemas."""
 
-from typing import TypeAlias
+from pydantic import Field
 
-from pydantic import BaseModel, Field
+from ...common.schema_job import BaseJobParams, TaskOutput
 
-from ...common.schemas import BaseJobParams
-
-JSONPrimitive: TypeAlias = str | int | float | bool | None
-JSONValue: TypeAlias = JSONPrimitive | list["JSONValue"] | dict[str, "JSONValue"]
+# Use PEP 695 recursive type alias
+type JSONValue = str | int | float | bool | None | list[JSONValue] | dict[str, JSONValue]
 
 
 def _as_str(value: JSONValue) -> str | None:
@@ -22,7 +20,7 @@ def _as_float(value: JSONValue) -> float | None:
     return value if isinstance(value, (int, float)) else None
 
 
-class ExifParams(BaseJobParams):
+class ExifMetadataParams(BaseJobParams):
     """Parameters for EXIF metadata extraction task."""
 
     tags: list[str] = Field(
@@ -31,7 +29,7 @@ class ExifParams(BaseJobParams):
     )
 
 
-class ExifMetadata(BaseModel):
+class ExifMetadataOutput(TaskOutput):
     """Typed EXIF metadata output model."""
 
     make: str | None = None
@@ -58,7 +56,7 @@ class ExifMetadata(BaseModel):
     raw_metadata: dict[str, JSONValue] = Field(default_factory=dict)
 
     @classmethod
-    def from_raw_metadata(cls, raw_meta: dict[str, JSONValue]) -> "ExifMetadata":
+    def from_raw_metadata(cls, raw_meta: dict[str, JSONValue]) -> "ExifMetadataOutput":
         return cls(
             make=_as_str(raw_meta.get("Make")),
             model=_as_str(raw_meta.get("Model")),

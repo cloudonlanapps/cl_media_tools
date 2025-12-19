@@ -1,33 +1,24 @@
 """Face embedding task implementation."""
 
 import logging
-from typing import Callable, TypeAlias, TypedDict, cast, override
+from typing import Callable, override
 
 import numpy as np
-from numpy.typing import NDArray
 
 from ...common.compute_module import ComputeModule
-from ...common.schemas import BaseJobParams, Job, TaskResult
+from ...common.file_storage import JobStorage
 from .algo.face_embedder import FaceEmbedder
-from .schema import FaceEmbedding, FaceEmbeddingParams
+from .schema import FaceEmbeddingOutput, FaceEmbeddingParams
 
 logger = logging.getLogger(__name__)
 
-EmbeddingArray: TypeAlias = NDArray[np.floating]
 
+class FaceEmbeddingTask(ComputeModule[FaceEmbeddingParams, FaceEmbeddingOutput]):
+    """Compute module for generating a face embedding using ONNX model."""
 
-class FaceEmbeddingFileResult(TypedDict):
-    file_path: str
-    status: str
-    embedding: dict[str, float] | None
-    error: str | None
-
-
-class FaceEmbeddingTask(ComputeModule[FaceEmbeddingParams]):
-    """Compute module for generating face embeddings using ONNX model."""
+    schema: type[FaceEmbeddingParams] = FaceEmbeddingParams
 
     def __init__(self) -> None:
-        super().__init__()
         self._embedder: FaceEmbedder | None = None
 
     @property
@@ -36,108 +27,48 @@ class FaceEmbeddingTask(ComputeModule[FaceEmbeddingParams]):
         return "face_embedding"
 
     @override
-    def get_schema(self) -> type[BaseJobParams]:
-        return FaceEmbeddingParams
-
-    def _get_embedder(self) -> FaceEmbedder:
+    def setup(self) -> None:
         if self._embedder is None:
-            self._embedder = FaceEmbedder()
-            logger.info("Face embedder initialized successfully")
-        return self._embedder
+            try:
+                self._embedder = FaceEmbedder()
+                logger.info("Face embedder initialized successfully")
+            except (FileNotFoundError, RuntimeError, ImportError, OSError) as exc:
+                logger.error("Face embedder initialization failed", exc_info=exc)
+                raise RuntimeError(
+                    "Failed to initialize face embedder. "
+                    + "Ensure ONNX Runtime is installed and the model is available."
+                ) from exc
 
     @override
-    async def execute(
+    async def run(
         self,
-        job: Job,
+        job_id: str,
         params: FaceEmbeddingParams,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> TaskResult:
-        try:
-            try:
-                embedder = self._get_embedder()
-            except Exception as exc:
-                logger.error(f"Face embedder initialization failed: {exc}")
-                return TaskResult(status = "error", error = (
-                        f"Failed to initialize face embedder: {exc}. "
-                        "Ensure ONNX Runtime is installed and the model can be downloaded."
-                    ))
+    ) -> FaceEmbeddingOutput:
+        if not self._embedder:
+            raise RuntimeError("Face embedder is not initialized")
 
-            file_results: list[FaceEmbeddingFileResult] = []
-            total_files: int = len(params.input_paths)
+        input_path = storage.resolve_path(job_id, params.input_path)
 
-            for index, input_path in enumerate(params.input_paths):
-                try:
-                    embedding_array, quality_score = cast(
-                        tuple[EmbeddingArray, float | None],
-                        embedder.embed(
-                            image_path=input_path,
-                            normalize=params.normalize,
-                            compute_quality=True,
-                        ),
-                    )
+        embedding_array, quality_score = self._embedder.embed(
+            image_path=str(input_path),
+            normalize=params.normalize,
+            compute_quality=True,
+        )
 
-                    face_embedding = FaceEmbedding.from_numpy(
-                        embedding=embedding_array,
-                        quality_score=quality_score,
-                    )
+        path = storage.allocate_path(
+            job_id=job_id,
+            relative_path=params.output_path,
+        )
+        np.save(path, embedding_array)
 
-                    file_results.append(
-                        {
-                            "file_path": input_path,
-                            "status": "success",
-                            "embedding": face_embedding.model_dump(),
-                            "error": None,
-                        }
-                    )
+        if progress_callback:
+            progress_callback(100)
 
-                except FileNotFoundError:
-                    logger.error(f"File not found: {input_path}")
-                    file_results.append(
-                        {
-                            "file_path": input_path,
-                            "status": "error",
-                            "embedding": None,
-                            "error": "File not found",
-                        }
-                    )
-
-                except Exception as exc:
-                    logger.error(f"Failed to generate embedding for {input_path}: {exc}")
-                    file_results.append(
-                        {
-                            "file_path": input_path,
-                            "status": "error",
-                            "embedding": None,
-                            "error": str(exc),
-                        }
-                    )
-
-                if progress_callback:
-                    progress = int((index + 1) / total_files * 100)
-                    progress_callback(progress)
-
-            all_success: bool = all(r["status"] == "success" for r in file_results)
-            any_success: bool = any(r["status"] == "success" for r in file_results)
-
-            if all_success or any_success:
-                status = "ok"
-                if not all_success:
-                    success_count = sum(1 for r in file_results if r["status"] == "success")
-                    logger.warning(
-                        f"Partial success: {success_count}/{total_files} files processed successfully"
-                    )
-            else:
-                return TaskResult(status = "error", task_output = {
-                        "files": file_results,
-                        "total_files": total_files,
-                    }, error = "Failed to generate embeddings for all files")
-
-            return TaskResult(status = status, task_output = {
-                    "files": file_results,
-                    "total_files": total_files,
-                    "normalize": params.normalize,
-                })
-
-        except Exception as exc:
-            logger.exception(f"Unexpected error in FaceEmbeddingTask: {exc}")
-            return TaskResult(status = "error", error = f"Task failed: {exc}")
+        return FaceEmbeddingOutput(
+            normalized=params.normalize,
+            embedding_dim=int(embedding_array.shape[0]),
+            quality_score=quality_score,
+        )

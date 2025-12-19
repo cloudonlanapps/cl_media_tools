@@ -1,6 +1,6 @@
 """Image conversion plugin."""
 
-from .schema import ImageConversionParams
+from .schema import ImageConversionOutput, ImageConversionParams
 from .task import ImageConversionTask
 
-__all__ = ["ImageConversionTask", "ImageConversionParams"]
+__all__ = ["ImageConversionTask", "ImageConversionParams", "ImageConversionOutput"]

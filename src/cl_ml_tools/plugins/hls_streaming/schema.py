@@ -2,14 +2,11 @@
 
 from pydantic import BaseModel, Field, field_validator
 
-from ...common.schemas import BaseJobParams
+from ...common.schema_job import BaseJobParams, TaskOutput
 
 
 class VariantConfig(BaseModel):
-    """Configuration for a single HLS variant.
-
-    Users can fully customize resolution and bitrate for each variant.
-    """
+    """Configuration for a single HLS variant."""
 
     resolution: int | None = Field(
         default=None,
@@ -20,24 +17,6 @@ class VariantConfig(BaseModel):
         ge=100,
         description="Target bitrate in kbps (e.g., 3500, 1500, 800)",
     )
-
-
-class HLSConversionResult(BaseModel):
-    """Result for a single HLS conversion (Pydantic model, not dict)."""
-
-    input_file: str = Field(description="Path to input video file")
-    output_dir: str = Field(description="Directory containing HLS output")
-    master_playlist: str = Field(description="Path to master M3U8 playlist")
-    variants_generated: int = Field(description="Number of variants created")
-    total_segments: int = Field(description="Total TS segments across all variants")
-    include_original: bool = Field(description="Whether original quality was included")
-
-
-class HLSStreamingTaskOutput(BaseModel):
-    """Task output structure (Pydantic model, not dict)."""
-
-    files: list[HLSConversionResult] = Field(description="Conversion results for each input file")
-    total_files: int = Field(description="Total number of files processed")
 
 
 class HLSStreamingParams(BaseJobParams):
@@ -63,3 +42,11 @@ class HLSStreamingParams(BaseJobParams):
         if len(v) == 0:
             raise ValueError("At least one variant must be specified")
         return v
+
+
+class HLSStreamingOutput(TaskOutput):
+    master_playlist: str = Field(description="Path to master M3U8 playlist")
+    variants_generated: int = Field(description="Number of variants created")
+    total_segments: int = Field(description="Total TS segments across all variants")
+    include_original: bool = Field(description="Whether original quality was included")
+    pass

@@ -1,61 +1,80 @@
 """ComputeModule - Abstract base class for compute tasks."""
 
 from abc import ABC, abstractmethod
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic
 
-from .schemas import BaseJobParams, Job, TaskResult
+from .file_storage import JobStorage
+from .schema_job import P, Q
+from .schema_job_record import JobRecord, JobRecordUpdate, JobStatus
 
-P = TypeVar("P", bound=BaseJobParams)
 
-
-class ComputeModule(ABC, Generic[P]):
-    """Abstract base class for all compute tasks.
-
-    All task plugins must extend this class and implement the required methods.
-
-    Example:
-        class ImageThumbnailTask(ComputeModule):
-
-            @property
-            def task_type(self) -> str:
-                return "image_thumbnail"
-
-            def get_schema(self) -> type[BaseJobParams]:
-                return ImageThumbnailParams
-
-            async def execute(self, job, params, progress_callback=None):
-                return {
-                    "status": "ok",
-                    "task_output": {...},
-                }
+class ComputeModule(ABC, Generic[P, Q]):
     """
+    Stateless, template-method based compute module.
+
+    - Params are validated once and passed through
+    - run() owns persistence
+    - Q contains metadata only
+    """
+
+    schema: type[P]
 
     @property
     @abstractmethod
-    def task_type(self) -> str:
-        """Return task type identifier."""
-        ...
+    def task_type(self) -> str: ...
+
+    def setup(self) -> None:
+        """Optional per-execution setup."""
+        pass
 
     @abstractmethod
-    def get_schema(self) -> type[BaseJobParams]:
-        """Return the Pydantic params class for this task."""
-        ...
-
-    @abstractmethod
-    async def execute(
+    async def run(
         self,
-        job: Job,
+        job_id: str,
         params: P,
+        storage: JobStorage,
         progress_callback: Callable[[int], None] | None = None,
-    ) -> TaskResult:
-        """Execute the task.
+    ) -> Q:
+        """
+        Execute task.
 
-        Args:
-            job: The Job object (job_id, task_type, etc.)
-            params: Validated parameters (subclass of BaseJobParams)
-            progress_callback: Optional callback to report progress (0–100)
-
-        Returns:
-            TaskResult dict with status and optional task_output/error
+        - May persist data via storage
+        - Must return metadata only
         """
         ...
+
+    async def execute(
+        self,
+        job_record: JobRecord,
+        storage: JobStorage,
+        progress_callback: Callable[[int], None] | None = None,
+    ) -> JobRecordUpdate:
+        try:
+            params = self.schema.model_validate(job_record.params)
+
+            self.setup()
+
+            output = await self.run(
+                job_record.job_id,
+                params,
+                storage,
+                progress_callback,
+            )
+
+            return JobRecordUpdate(
+                status=JobStatus.completed,
+                output=output.model_dump(),
+                progress=100,
+            )
+
+        except FileNotFoundError as exc:
+            return JobRecordUpdate(
+                status=JobStatus.error,
+                error_message=str(exc),
+            )
+
+        except Exception as exc:
+            return JobRecordUpdate(
+                status=JobStatus.error,
+                error_message=str(exc),
+            )

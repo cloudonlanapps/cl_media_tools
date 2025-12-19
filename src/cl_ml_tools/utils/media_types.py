@@ -44,16 +44,22 @@ def contains_url(text: str):
 
 
 def determine_mime(bytes_io: BytesIO, file_type: str | None = None) -> MediaType:
-    if not file_type:
-        _ = bytes_io.seek(0)
-        # Create a Magic object
-        mime = magic.Magic(mime=True)
+    # Save original position
 
-        # Determine the file type
-        file_type = mime.from_buffer(bytes_io.getvalue())
+    try:
         if not file_type:
-            file_type = "application/octet-stream"
-    return MediaType.from_mime(file_type)
+            _ = bytes_io.seek(0)
+            # Create a Magic object
+            mime = magic.Magic(mime=True)
+
+            # Determine the file type
+            file_type = mime.from_buffer(bytes_io.getvalue())
+            if not file_type:
+                file_type = "application/octet-stream"
+        return MediaType.from_mime(file_type)
+    finally:
+        # Always reset position to 0 (as expected by tests)
+        _ = bytes_io.seek(0)
 
 
 def determine_media_type(bytes_io: BytesIO, file_type: str) -> MediaType:

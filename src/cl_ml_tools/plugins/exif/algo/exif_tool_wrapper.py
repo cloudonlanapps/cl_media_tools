@@ -63,10 +63,15 @@ class MetadataExtractor:
 
         except subprocess.CalledProcessError as exc:
             stderr = cast(str, exc.stderr) if exc.stderr is not None else ""  # pyright: ignore[reportAny]
-            logger.error(f"ExifTool failed for {path}: {stderr}")
+            logger.warning(f"ExifTool failed for {path}: {stderr}")
             return {}
 
-        except (subprocess.TimeoutExpired, json.JSONDecodeError):
+        except subprocess.TimeoutExpired:
+            logger.warning(f"ExifTool timed out for {path}")
+            return {}
+
+        except json.JSONDecodeError as exc:
+            logger.warning(f"Failed to parse ExifTool JSON output for {path}: {exc}")
             return {}
 
     def extract_metadata_all(self, filepath: str | Path) -> MetadataDict:
@@ -89,8 +94,13 @@ class MetadataExtractor:
 
         except subprocess.CalledProcessError as exc:
             stderr = cast(str, exc.stderr) if exc.stderr is not None else ""  # pyright: ignore[reportAny]
-            logger.error(f"ExifTool failed for {path}: {stderr}")
+            logger.warning(f"ExifTool failed for {path}: {stderr}")
             return {}
 
-        except (subprocess.TimeoutExpired, json.JSONDecodeError):
+        except subprocess.TimeoutExpired:
+            logger.warning(f"ExifTool timed out for {path}")
+            return {}
+
+        except json.JSONDecodeError as exc:
+            logger.warning(f"Failed to parse ExifTool JSON output for {path}: {exc}")
             return {}

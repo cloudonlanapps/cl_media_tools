@@ -35,21 +35,54 @@ def image_thumbnail(
     input_path = Path(input_path)
     output_path = Path(output_path)
 
-    # Default to 256 if both are None
-    size: int = width or height or 256
-    w: int = width if width is not None else size
-    h: int = height if height is not None else size
-
     with Image.open(input_path) as img:
-        if maintain_aspect_ratio:
-            img.thumbnail((w, h), Image.Resampling.LANCZOS)
-            thumbnail = img
-        else:
-            thumbnail = img.resize(
-                (w, h),
-                Image.Resampling.LANCZOS,
-            )
+        original_width, original_height = img.size
 
+        # Defaults
+        DEFAULT_SIZE = 256
+
+        # Determine target dimensions
+        if width is None and height is None:
+            w = h = DEFAULT_SIZE
+        elif width is None:
+            assert height is not None
+            h = height
+            if maintain_aspect_ratio:
+                w = int(h * (original_width / original_height))
+            else:
+                w = h
+        elif height is None:
+            assert width is not None
+            w = width
+            if maintain_aspect_ratio:
+                h = int(w * (original_height / original_width))
+            else:
+                h = w
+        else:
+            # Both width and height specified
+            assert width is not None
+            assert height is not None
+            if maintain_aspect_ratio:
+                # Fit within bounds while maintaining aspect ratio
+                aspect_ratio = original_width / original_height
+                if width / height > aspect_ratio:
+                    # Height is the limiting factor
+                    h = height
+                    w = int(h * aspect_ratio)
+                else:
+                    # Width is the limiting factor
+                    w = width
+                    h = int(w / aspect_ratio)
+            else:
+                w = width
+                h = height
+
+        # Prevent upscaling - cap at original size
+        w = min(w, original_width)
+        h = min(h, original_height)
+
+        # Resize the image
+        thumbnail = img.resize((w, h), Image.Resampling.LANCZOS)
         thumbnail.save(output_path)
 
     return str(output_path)

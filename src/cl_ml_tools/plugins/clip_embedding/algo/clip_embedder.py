@@ -13,11 +13,11 @@ from ....utils.model_downloader import get_model_downloader
 
 logger = logging.getLogger(__name__)
 
-MODEL_URL = "https://huggingface.co/apple/MobileCLIP-S2-onnx/resolve/main/image_encoder.onnx"
-MODEL_FILENAME = "mobileclip_s2_image_encoder.onnx"
+MODEL_URL = "https://huggingface.co/Xenova/mobileclip_blt/resolve/main/onnx/vision_model.onnx"
+MODEL_FILENAME = "mobileclip_blt_vision_model.onnx"
 MODEL_SHA256: str | None = None
 
-INPUT_SIZE = (256, 256)
+INPUT_SIZE = (224, 224)
 CLIP_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
 CLIP_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
 
@@ -97,8 +97,8 @@ class ClipEmbedder:
         if not image_path.exists():
             raise FileNotFoundError(image_path)
 
-        image = Image.open(image_path)
-        input_array = self.preprocess(image)
+        with Image.open(image_path) as image:
+            input_array = self.preprocess(image)
 
         output = cast(
             NDArray[np.float32],

@@ -1,6 +1,6 @@
 """Media thumbnail plugin."""
 
-from .schema import MediaThumbnailParams
+from .schema import MediaThumbnailOutput, MediaThumbnailParams
 from .task import MediaThumbnailTask
 
-__all__ = ["MediaThumbnailTask", "MediaThumbnailParams"]
+__all__ = ["MediaThumbnailTask", "MediaThumbnailParams", "MediaThumbnailOutput"]
