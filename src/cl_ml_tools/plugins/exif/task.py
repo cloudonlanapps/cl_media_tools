@@ -2,7 +2,6 @@
 
 import json
 import logging
-from pathlib import Path
 from typing import Callable, override
 
 from ...common.compute_module import ComputeModule

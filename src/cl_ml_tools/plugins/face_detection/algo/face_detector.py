@@ -1,3 +1,5 @@
+# pyright: reportAny=false
+
 """Face detection using ONNX model (MediaPipe Face Detection).
 
 Model Source: https://huggingface.co/qualcomm/MediaPipe-Face-Detection
@@ -128,8 +130,8 @@ class FaceDetector:
         # Extract bounding boxes and scores
         # Assuming outputs[0] = boxes [batch, num_boxes, 4]
         # and outputs[1] = scores [batch, num_boxes] or [batch, num_boxes, 1]
-        boxes = outputs[0]
-        scores = outputs[1]
+        boxes: NDArray[np.float32] = outputs[0]
+        scores: NDArray[np.float32] = outputs[1]
 
         # Remove batch dimension
         if boxes.ndim == 3:
@@ -200,7 +202,7 @@ class FaceDetector:
         # Sort by scores (descending)
         sorted_indices = np.argsort(scores)[::-1]
 
-        keep_indices = []
+        keep_indices: list[int] = []
 
         while len(sorted_indices) > 0:
             # Keep highest scoring box
@@ -240,10 +242,10 @@ class FaceDetector:
         def to_corners(b: NDArray[np.float32]) -> NDArray[np.float32]:
             if b.ndim == 1:
                 x_c, y_c, w, h = b
-                return np.array([x_c - w/2, y_c - h/2, x_c + w/2, y_c + h/2])
+                return np.array([x_c - w/2, y_c - h/2, x_c + w/2, y_c + h/2], dtype=np.float32)
             else:
                 x_c, y_c, w, h = b[:, 0], b[:, 1], b[:, 2], b[:, 3]
-                return np.column_stack([x_c - w/2, y_c - h/2, x_c + w/2, y_c + h/2])
+                return np.column_stack([x_c - w/2, y_c - h/2, x_c + w/2, y_c + h/2]).astype(np.float32)
 
         box_corners = to_corners(box)
         boxes_corners = to_corners(boxes)

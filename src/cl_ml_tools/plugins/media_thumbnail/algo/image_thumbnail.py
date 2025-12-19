@@ -45,12 +45,14 @@ def image_thumbnail(
         if width is None and height is None:
             w = h = DEFAULT_SIZE
         elif width is None:
+            assert height is not None
             h = height
             if maintain_aspect_ratio:
                 w = int(h * (original_width / original_height))
             else:
                 w = h
         elif height is None:
+            assert width is not None
             w = width
             if maintain_aspect_ratio:
                 h = int(w * (original_height / original_width))
@@ -58,6 +60,8 @@ def image_thumbnail(
                 h = w
         else:
             # Both width and height specified
+            assert width is not None
+            assert height is not None
             if maintain_aspect_ratio:
                 # Fit within bounds while maintaining aspect ratio
                 aspect_ratio = original_width / original_height
