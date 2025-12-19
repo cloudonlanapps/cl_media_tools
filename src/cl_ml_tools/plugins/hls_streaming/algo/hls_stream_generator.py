@@ -260,11 +260,11 @@ class HLSStreamGenerator:
             )
             video_map_commands.append("-map")
             video_map_commands.append(f"[{variant.resolution_str}_out]")
-            
+
             if self.has_audio:
                 audio_map_commands.append("-map")
                 audio_map_commands.append("0:a")
-            
+
             video_bitrate_commands.append(f"-b:v:{i}")
             if variant.bitrate_str:
                 video_bitrate_commands.append(variant.bitrate_str)
@@ -274,7 +274,7 @@ class HLSStreamGenerator:
             video_bitrate_commands.append(f"-bufsize:v:{i}")
             if variant.bitrate_str:
                 video_bitrate_commands.append(variant.bitrate_str)
-            
+
             if self.has_audio:
                 audio_bitrate_commands.append(f"-b:a:{i}")
                 audio_bitrate_commands.append("128k")
