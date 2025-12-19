@@ -65,101 +65,117 @@ class ModelDownloader:
             FileNotFoundError: If extract_pattern specified but no matching files found in ZIP
         """
         model_path = self.cache_dir / filename
+        file_downloaded = False
 
         # Check if model already exists and is valid
         if model_path.exists() and not force_redownload:
             if expected_sha256 is None:
                 logger.info(f"Model already cached: {model_path}")
-                return model_path
-
-            # Verify existing file hash
-            actual_hash = self._compute_sha256(model_path)
-            if actual_hash == expected_sha256:
-                logger.info(f"Model already cached and verified: {model_path}")
-                return model_path
+                file_downloaded = True
             else:
-                logger.warning(
-                    f"Cached model hash mismatch. Expected {expected_sha256}, "
-                    + f"got {actual_hash}. Re-downloading..."
-                )
-
-        # Download the model
-        logger.info(f"Downloading model from {url} to {model_path}")
-
-        try:
-            with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
-                _ = response.raise_for_status()
-
-                # Get total size if available
-                size_header = cast(str | None, response.headers.get("content-length"))
-                total_size: int = int(size_header) if size_header is not None else 0
-
-                # Download with progress logging
-                with open(model_path, "wb") as f:
-                    downloaded = 0
-                    for chunk in response.iter_bytes(chunk_size=8192):
-                        _ = f.write(chunk)
-                        downloaded += len(chunk)
-
-                        # Log progress every 10MB
-                        if downloaded % (10 * 1024 * 1024) == 0 and total_size > 0:
-                            progress = (downloaded / total_size) * 100
-                            logger.info(f"Download progress: {progress:.1f}%")
-
-            logger.info(f"Download complete: {model_path}")
-
-            # Verify hash if provided
-            if expected_sha256 is not None:
+                # Verify existing file hash
                 actual_hash = self._compute_sha256(model_path)
-                if actual_hash != expected_sha256:
-                    model_path.unlink()  # Delete corrupted file
-                    raise ValueError(
-                        f"Downloaded model hash mismatch. Expected {expected_sha256}, "
-                        + f"got {actual_hash}. File deleted."
+                if actual_hash == expected_sha256:
+                    logger.info(f"Model already cached and verified: {model_path}")
+                    file_downloaded = True
+                else:
+                    logger.warning(
+                        f"Cached model hash mismatch. Expected {expected_sha256}, "
+                        + f"got {actual_hash}. Re-downloading..."
                     )
-                logger.info("Model hash verified successfully")
 
-            # Auto-extract if requested
-            if auto_extract and model_path.suffix == ".zip":
-                import zipfile
+        if not file_downloaded:
+            # Download the model
+            logger.info(f"Downloading model from {url} to {model_path}")
 
-                extract_dir = model_path.parent
+            try:
+                with httpx.stream("GET", url, follow_redirects=True, timeout=300.0) as response:
+                    _ = response.raise_for_status()
 
-                # Check if already extracted
+                    # Get total size if available
+                    size_header = cast(str | None, response.headers.get("content-length"))
+                    total_size: int = int(size_header) if size_header is not None else 0
+
+                    # Download with progress logging
+                    with open(model_path, "wb") as f:
+                        downloaded = 0
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            _ = f.write(chunk)
+                            downloaded += len(chunk)
+
+                            # Log progress every 10MB
+                            if downloaded % (10 * 1024 * 1024) == 0 and total_size > 0:
+                                progress = (downloaded / total_size) * 100
+                                logger.info(f"Download progress: {progress:.1f}%")
+
+                logger.info(f"Download complete: {model_path}")
+
+                # Verify hash if provided
+                if expected_sha256 is not None:
+                    actual_hash = self._compute_sha256(model_path)
+                    if actual_hash != expected_sha256:
+                        model_path.unlink()  # Delete corrupted file
+                        raise ValueError(
+                            f"Downloaded model hash mismatch. Expected {expected_sha256}, "
+                            + f"got {actual_hash}. File deleted."
+                        )
+                    logger.info("Model hash verified successfully")
+
+            except httpx.HTTPError as e:
+                logger.error(f"Failed to download model from {url}: {e}")
+                raise
+
+        # Auto-extract if requested
+        if auto_extract and model_path.suffix == ".zip":
+            import zipfile
+
+            extract_dir = model_path.parent
+
+            # Check if already extracted
+            if extract_pattern:
+                # Note: This simple glob might not work recursively if pattern doesn't contain **
+                # But it matches how we look for it below.
+                # However, for recursive search inside zip vs flat glob here, there might be mismatch.
+                # Let's trust usage of extract_pattern.
+                # If checking existing files, we need to be careful.
+                # If we assume extraction happened, we can check.
+                # But if previous run didn't extract (because of the bug), we must extract now.
+                
+                # If we can't easily check for *all* files, maybe best to just try extracting.
+                # Optimisation: Check for at least one match?
+                # Using rglob if pattern indicates recursion?
+                existing = list(extract_dir.rglob(extract_pattern)) if "**" in extract_pattern else list(extract_dir.glob(extract_pattern))
+                if existing and not force_redownload:
+                     logger.info(f"Found already extracted file: {existing[0]}")
+                     return existing[0]
+
+            # Extract ZIP file
+            logger.info(f"Extracting {model_path}")
+            with zipfile.ZipFile(model_path, "r") as zip_ref:
                 if extract_pattern:
-                    existing = list(extract_dir.glob(extract_pattern))
-                    if existing and not force_redownload:
-                        logger.info(f"Found already extracted file: {existing[0]}")
-                        return existing[0]
+                    # Extract specific files matching pattern
+                    # Using Path(m).match(extract_pattern) supports basic glob
+                    members = [
+                        m for m in zip_ref.namelist() if Path(m).match(extract_pattern)
+                    ]
+                    if not members:
+                        raise FileNotFoundError(
+                            f"No files matching '{extract_pattern}' found in {model_path}"
+                        )
+                    for member in members:
+                        _ = zip_ref.extract(member, extract_dir)
+                    
+                    # Return path to the first matched file, resolving subdirectories
+                    extracted_file = extract_dir / members[0]
+                else:
+                    # Extract all files
+                    zip_ref.extractall(extract_dir)
+                    extracted_file = extract_dir / zip_ref.namelist()[0]
 
-                # Extract ZIP file
-                logger.info(f"Extracting {model_path}")
-                with zipfile.ZipFile(model_path, "r") as zip_ref:
-                    if extract_pattern:
-                        # Extract specific files matching pattern
-                        members = [
-                            m for m in zip_ref.namelist() if Path(m).match(extract_pattern)
-                        ]
-                        if not members:
-                            raise FileNotFoundError(
-                                f"No files matching '{extract_pattern}' found in {model_path}"
-                            )
-                        for member in members:
-                            _ = zip_ref.extract(member, extract_dir)
-                        extracted_file = extract_dir / members[0]
-                    else:
-                        # Extract all files
-                        zip_ref.extractall(extract_dir)
-                        extracted_file = extract_dir / zip_ref.namelist()[0]
+            logger.info(f"Extracted to: {extracted_file}")
+            return extracted_file
 
-                logger.info(f"Extracted to: {extracted_file}")
-                return extracted_file
-
-            return model_path
-
-        except httpx.HTTPError as e:
-            logger.error(f"Failed to download model from {url}: {e}")
-            raise
+        return model_path
 
     def _compute_sha256(self, file_path: Path) -> str:
         """Compute SHA256 hash of a file.
