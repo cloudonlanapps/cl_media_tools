@@ -7,6 +7,7 @@ from .common.schema_job import BaseJobParams, Job
 from .common.schema_job_record import JobRecord, JobRecordUpdate
 from .master import create_master_router
 from .utils.mqtt import (
+    BroadcasterBase,
     MQTTBroadcaster,
     NoOpBroadcaster,
     get_broadcaster,
@@ -26,6 +27,7 @@ __all__ = [
     "JobStorage",
     "__version__",
     "Worker",
+    "BroadcasterBase",
     "MQTTBroadcaster",
     "NoOpBroadcaster",
     "create_master_router",
