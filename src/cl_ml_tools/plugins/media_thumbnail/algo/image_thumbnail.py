@@ -41,32 +41,41 @@ def image_thumbnail(
         # Defaults
         DEFAULT_SIZE = 256
 
-        # Normalize inputs
-        w_in: int | None = width
-        h_in: int | None = height
-        h: int = h_in if h_in is not None else DEFAULT_SIZE
-        w: int = w_in if w_in is not None else DEFAULT_SIZE
-
-        if w_in is None and h_in is None:
+        # Determine target dimensions
+        if width is None and height is None:
             w = h = DEFAULT_SIZE
-
-        elif w_in is None:
-            h = h_in if h_in is not None else DEFAULT_SIZE
+        elif width is None:
+            h = height
             if maintain_aspect_ratio:
                 w = int(h * (original_width / original_height))
             else:
                 w = h
-
-        elif h_in is None:
-            w = w_in
+        elif height is None:
+            w = width
             if maintain_aspect_ratio:
                 h = int(w * (original_height / original_width))
             else:
                 h = w
-
         else:
-            w = w_in
-            h = h_in
+            # Both width and height specified
+            if maintain_aspect_ratio:
+                # Fit within bounds while maintaining aspect ratio
+                aspect_ratio = original_width / original_height
+                if width / height > aspect_ratio:
+                    # Height is the limiting factor
+                    h = height
+                    w = int(h * aspect_ratio)
+                else:
+                    # Width is the limiting factor
+                    w = width
+                    h = int(w / aspect_ratio)
+            else:
+                w = width
+                h = height
+
+        # Prevent upscaling - cap at original size
+        w = min(w, original_width)
+        h = min(h, original_height)
 
         # Resize the image
         thumbnail = img.resize((w, h), Image.Resampling.LANCZOS)

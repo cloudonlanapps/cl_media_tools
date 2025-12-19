@@ -370,17 +370,20 @@ async def test_hash_task_run_success_sha512(sample_image_path: Path, tmp_path: P
 async def test_hash_task_run_file_not_found(tmp_path: Path):
     """Test HashTask raises FileNotFoundError for missing input."""
     params = HashParams(
-        input_path="/nonexistent/file.jpg",
+        input_path="input/nonexistent.jpg",  # Relative path
         output_path="output/hash.json",
     )
 
     task = HashTask()
     job_id = "test-job-789"
 
-    # Mock storage
+    # Mock storage with resolve_path
     class MockStorage:
+        def resolve_path(self, job_id: str, relative_path: str) -> Path:
+            return tmp_path / job_id / relative_path
+
         def allocate_path(self, job_id: str, relative_path: str) -> str:
-            return str(tmp_path / "output" / "hash.json")
+            return str(tmp_path / job_id / relative_path)
 
     storage = MockStorage()
 
@@ -391,21 +394,30 @@ async def test_hash_task_run_file_not_found(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_hash_task_progress_callback(sample_image_path: Path, tmp_path: Path):
     """Test HashTask calls progress callback."""
-    input_path = tmp_path / "input.jpg"
-    input_path.write_bytes(sample_image_path.read_bytes())
+    job_id = "test-job-progress"
+
+    # Set up job storage directory with input file
+    job_dir = tmp_path / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    input_dir = job_dir / "input"
+    input_dir.mkdir(exist_ok=True)
+    input_file = input_dir / "test.jpg"
+    input_file.write_bytes(sample_image_path.read_bytes())
 
     params = HashParams(
-        input_path=str(input_path),
+        input_path="input/test.jpg",  # Relative path
         output_path="output/hash.json",
     )
 
     task = HashTask()
-    job_id = "test-job-progress"
 
-    # Mock storage
+    # Mock storage with resolve_path
     class MockStorage:
+        def resolve_path(self, job_id: str, relative_path: str) -> Path:
+            return tmp_path / job_id / relative_path
+
         def allocate_path(self, job_id: str, relative_path: str) -> str:
-            output_path = tmp_path / "output" / "hash.json"
+            output_path = tmp_path / job_id / relative_path
             output_path.parent.mkdir(parents=True, exist_ok=True)
             return str(output_path)
 

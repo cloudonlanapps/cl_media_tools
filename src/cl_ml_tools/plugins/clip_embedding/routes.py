@@ -42,7 +42,7 @@ def create_router(
             output_type=ClipEmbeddingOutput,
             params_factory=lambda path: ClipEmbeddingParams(
                 input_path=path,
-                output_path="output/clip_embedding.nb",
+                output_path="output/clip_embedding.npy",
                 normalize=normalize,
             ),
         )

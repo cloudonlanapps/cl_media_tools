@@ -50,8 +50,10 @@ class FaceEmbeddingTask(ComputeModule[FaceEmbeddingParams, FaceEmbeddingOutput])
         if not self._embedder:
             raise RuntimeError("Face embedder is not initialized")
 
+        input_path = storage.resolve_path(job_id, params.input_path)
+
         embedding_array, quality_score = self._embedder.embed(
-            image_path=params.input_path,
+            image_path=str(input_path),
             normalize=params.normalize,
             compute_quality=True,
         )

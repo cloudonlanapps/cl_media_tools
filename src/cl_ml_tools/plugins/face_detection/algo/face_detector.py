@@ -28,7 +28,7 @@ MODEL_FILENAME = "mediapipe_face_detector.onnx"
 MODEL_SHA256: str | None = None  # TODO: Add SHA256 hash for verification
 
 # Expected input shape for MediaPipe Face Detection
-INPUT_SIZE: tuple[int, int] = (192, 192)  # (height, width)
+INPUT_SIZE: tuple[int, int] = (224, 224)  # (height, width)
 
 
 class FaceDetection(TypedDict):

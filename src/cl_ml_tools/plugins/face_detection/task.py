@@ -51,13 +51,15 @@ class FaceDetectionTask(ComputeModule[FaceDetectionParams, FaceDetectionOutput])
         if not self._detector:
             raise RuntimeError("Face detector is not initialized")
 
+        input_path = storage.resolve_path(job_id, params.input_path)
+
         detections = self._detector.detect(
-            image_path=params.input_path,
+            image_path=str(input_path),
             confidence_threshold=params.confidence_threshold,
             nms_threshold=params.nms_threshold,
         )
 
-        with Image.open(params.input_path) as img:
+        with Image.open(input_path) as img:
             image_width, image_height = img.size
 
         faces = [

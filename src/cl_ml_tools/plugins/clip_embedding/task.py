@@ -50,8 +50,10 @@ class ClipEmbeddingTask(ComputeModule[ClipEmbeddingParams, ClipEmbeddingOutput])
         if not self._embedder:
             raise RuntimeError("MobileCLIP embedder is not initialized")
 
+        input_path = storage.resolve_path(job_id, params.input_path)
+
         embedding = self._embedder.embed(
-            image_path=params.input_path,
+            image_path=str(input_path),
             normalize=params.normalize,
         )
 

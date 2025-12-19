@@ -50,8 +50,10 @@ class DinoEmbeddingTask(ComputeModule[DinoEmbeddingParams, DinoEmbeddingOutput])
         if not self._embedder:
             raise RuntimeError("DINOv2 embedder is not initialized")
 
+        input_path = storage.resolve_path(job_id, params.input_path)
+
         embedding = self._embedder.embed(
-            image_path=params.input_path,
+            image_path=str(input_path),
             normalize=params.normalize,
         )
 

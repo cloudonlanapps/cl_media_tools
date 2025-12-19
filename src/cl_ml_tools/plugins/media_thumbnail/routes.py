@@ -23,9 +23,9 @@ def create_router(
     @router.post("/jobs/media_thumbnail", response_model=JobCreatedResponse)
     async def create_thumbnail_job(
         file: Annotated[UploadFile, File(description="Media file to thumbnail (image or video)")],
-        width: Annotated[int, Form(gt=0, description="Target width in pixels")],
-        height: Annotated[int, Form(gt=0, description="Target height in pixels")],
-        maintain_aspect_ratio: Annotated[bool, Form(description="Maintain aspect ratio")] = False,
+        width: Annotated[int | None, Form(gt=0, description="Target width in pixels")] = None,
+        height: Annotated[int | None, Form(gt=0, description="Target height in pixels")] = None,
+        maintain_aspect_ratio: Annotated[bool, Form(description="Maintain aspect ratio")] = True,
         priority: Annotated[int, Form(ge=0, le=10, description="Job priority (0-10)")] = 5,
         user: Annotated[UserLike | None, Depends(get_current_user)] = None,
     ) -> JobCreatedResponse:
@@ -39,7 +39,7 @@ def create_router(
             output_type=MediaThumbnailOutput,
             params_factory=lambda path: MediaThumbnailParams(
                 input_path=path,
-                output_path="output/thumbnail",
+                output_path="output/thumbnail.jpg",
                 width=width,
                 height=height,
                 maintain_aspect_ratio=maintain_aspect_ratio,

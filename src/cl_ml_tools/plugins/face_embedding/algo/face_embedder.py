@@ -77,7 +77,7 @@ class FaceEmbedder:
 
         img_array: NDArray[np.float32] = np.asarray(image_resized, dtype=np.float32) / 255.0
 
-        img_array = np.transpose(img_array, (2, 0, 1))
+        # PIL already gives us (H, W, C), model expects (batch, H, W, C)
         img_array = np.expand_dims(img_array, axis=0)
 
         return img_array
