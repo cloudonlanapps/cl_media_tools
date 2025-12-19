@@ -4,8 +4,8 @@
 
 Comprehensive test suite for cl_ml_tools with 85%+ code coverage. Tests cover all 9 plugins, utility modules, and integration flows. Uses real test media validated against MD5 manifests and includes both unit tests and end-to-end integration tests.
 
-**Coverage Status:** Target 85%+
-**Test Count:** 200+ tests (54 MQTT + 150+ plugin/utility tests)
+**Coverage Status:** 91.42%
+**Test Count:** 359 tests 
 **Test Media:** Validated via MANIFEST.md5
 **External Dependencies:** FFmpeg, ExifTool (optional, can be excluded)
 
@@ -578,7 +578,7 @@ def test_video_thumbnail_basic(sample_video_path, temp_output_dir):
 
 ## Version History
 
-- **v0.2.1:** Current test suite with 85%+ coverage
+- **v0.2.1:** Current test suite with 91.42% coverage
 - **v0.2.0:** Initial comprehensive test suite
 
 ## Support

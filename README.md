@@ -928,28 +928,28 @@ worker = Worker(
 
 ## Testing
 
-Run the test suite:
+The package includes a comprehensive test suite (350+ tests) covering all plugins and core functionality.
+
+**Coverage Status: 91.42%**
+
+### Running Tests
 
 ```bash
-# Install with dev dependencies
-pip install cl_ml_tools[dev]
-
 # Run all tests
-pytest
+uv run pytest
 
 # Run with coverage report
-pytest --cov=src/cl_ml_tools --cov-report=html
-
-# Skip integration tests (faster)
-pytest -m "not integration"
-
-# Run specific plugin tests
-pytest tests/plugins/test_clip_embedding.py
+uv run pytest --cov=cl_ml_tools tests/
 ```
 
-**Test coverage target:** 85%
+### Test Organization
 
-For detailed testing documentation, see the test suite (tests are co-located with source code).
+- `tests/plugins/`: Plugin-specific algorithm and API tests
+- `tests/utils/`: Utility function tests
+- `tests/core/`: Worker runtime and protocol tests
+- `tests/integration/`: End-to-end multi-plugin workflows
+
+For more details on testing, see [tests/README.md](tests/README.md).
 
 ---
 
