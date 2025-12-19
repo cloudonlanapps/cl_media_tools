@@ -11,6 +11,9 @@ from PIL import Image
 from cl_ml_tools.plugins.media_thumbnail.algo.image_thumbnail import (
     image_thumbnail,
 )
+from cl_ml_tools.plugins.media_thumbnail.algo.video_thumbnail import (
+    video_thumbnail,
+)
 from cl_ml_tools.plugins.media_thumbnail.schema import (
     MediaThumbnailOutput,
     MediaThumbnailParams,
@@ -179,6 +182,86 @@ def test_image_thumbnail_algo_file_not_found(tmp_path: Path):
             output_path=str(output_path),
             width=200,
             height=None,
+        )
+
+
+# ============================================================================
+# ALGORITHM TESTS - Video Thumbnails
+# ============================================================================
+
+
+@pytest.mark.requires_ffmpeg
+def test_video_thumbnail_algo_basic(sample_video_path: Path, tmp_path: Path):
+    """Test basic video thumbnail creation."""
+    output_path = tmp_path / "video_thumbnail.jpg"
+
+    video_thumbnail(
+        input_path=str(sample_video_path),
+        output_path=str(output_path),
+        width=256,
+        height=256,
+    )
+
+    assert output_path.exists()
+    with Image.open(output_path) as img:
+        assert img.width <= 256
+        assert img.height <= 256
+
+
+@pytest.mark.requires_ffmpeg
+def test_video_thumbnail_algo_width_only(sample_video_path: Path, tmp_path: Path):
+    """Test video thumbnail with width only."""
+    output_path = tmp_path / "video_thumbnail_w.jpg"
+
+    video_thumbnail(
+        input_path=str(sample_video_path),
+        output_path=str(output_path),
+        width=300,
+    )
+
+    assert output_path.exists()
+    with Image.open(output_path) as img:
+        assert img.width == 300
+
+
+@pytest.mark.requires_ffmpeg
+def test_video_thumbnail_algo_height_only(sample_video_path: Path, tmp_path: Path):
+    """Test video thumbnail with height only."""
+    output_path = tmp_path / "video_thumbnail_h.jpg"
+
+    video_thumbnail(
+        input_path=str(sample_video_path),
+        output_path=str(output_path),
+        height=200,
+    )
+
+    assert output_path.exists()
+    with Image.open(output_path) as img:
+        assert img.height == 200
+
+
+@pytest.mark.requires_ffmpeg
+def test_video_thumbnail_algo_output_dir_missing(sample_video_path: Path, tmp_path: Path):
+    """Test video thumbnail raises FileNotFoundError if output directory missing."""
+    output_path = tmp_path / "nonexistent_dir" / "thumb.jpg"
+
+    with pytest.raises(FileNotFoundError, match="Output directory not found"):
+        video_thumbnail(
+            input_path=str(sample_video_path),
+            output_path=str(output_path),
+        )
+
+
+@pytest.mark.requires_ffmpeg
+def test_video_thumbnail_algo_input_missing(tmp_path: Path):
+    """Test video thumbnail raises FileNotFoundError if input missing."""
+    input_path = tmp_path / "missing.mp4"
+    output_path = tmp_path / "thumb.jpg"
+
+    with pytest.raises(FileNotFoundError, match="Input file not found"):
+        video_thumbnail(
+            input_path=str(input_path),
+            output_path=str(output_path),
         )
 
 

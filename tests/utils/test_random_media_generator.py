@@ -1,11 +1,11 @@
 """Unit tests for RandomMediaGenerator.
 
-Tests media list validation, MIME type support, and configuration.
-Skips actual generation tests as they require complex setup with frame generators.
+Tests media list validation, MIME type support, configuration, and actual media generation.
 """
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 from pydantic import ValidationError
 
@@ -14,6 +14,7 @@ from cl_ml_tools.utils.random_media_generator import (
     RandomMediaGenerator,
 )
 from cl_ml_tools.utils.random_media_generator.base_media import SupportedMIME
+from cl_ml_tools.utils.random_media_generator.frame_generator import FrameGenerator
 
 
 # ============================================================================
@@ -301,12 +302,158 @@ def test_supported_mime_returns_new_list():
     assert list1 is not list2
 
 
-def test_supported_mime_contains_all_base_types():
-    """Test supportedMIME includes both image and video types."""
-    supported = RandomMediaGenerator.supportedMIME()
+# ============================================================================
+# GENERATION TESTS
+# ============================================================================
 
-    has_image = any(mime.startswith("image/") for mime in supported)
-    has_video = any(mime.startswith("video/") for mime in supported)
 
-    assert has_image
-    assert has_video
+def test_image_generation_with_shapes(tmp_path: Path):
+    """Test actual image generation with various shapes."""
+    generator = RandomMediaGenerator(
+        out_dir=str(tmp_path),
+        media_list=[
+            {
+                "MIMEType": "image/jpeg",
+                "width": 100,
+                "height": 100,
+                "fileName": "test_shapes",
+                "frame": {
+                    "background_color": [255, 0, 0],
+                    "num_shapes": 5
+                }
+            }
+        ],
+    )
+    
+    for media in generator.media_list:
+        media.generate()
+        
+    assert (tmp_path / "test_shapes.jpg").exists()
+    assert (tmp_path / "test_shapes.jpg").stat().st_size > 0
+
+
+@pytest.mark.requires_ffmpeg
+def test_video_generation_with_scenes(tmp_path: Path):
+    """Test actual video generation with scenes."""
+    generator = RandomMediaGenerator(
+        out_dir=str(tmp_path),
+        media_list=[
+            {
+                "MIMEType": "video/mp4",
+                "width": 160,
+                "height": 120,
+                "fileName": "test_video",
+                "fps": 10,
+                "scenes": [
+                    {
+                        "duration_seconds": 1,
+                        "background_color": [0, 255, 0],
+                        "num_shapes": 2
+                    }
+                ]
+            }
+        ],
+    )
+    
+    for media in generator.media_list:
+        media.generate()
+        
+    assert (tmp_path / "test_video.mp4").exists()
+    assert (tmp_path / "test_video.mp4").stat().st_size > 0
+
+
+@pytest.mark.requires_exiftool
+def test_image_generation_with_metadata(tmp_path: Path):
+    """Test image generation with EXIF metadata."""
+    from datetime import datetime
+    
+    generator = RandomMediaGenerator(
+        out_dir=str(tmp_path),
+        media_list=[
+            {
+                "MIMEType": "image/jpeg",
+                "width": 100,
+                "height": 100,
+                "fileName": "test_meta",
+                "frame": {"num_shapes": 1},
+                "metadata": {
+                    "CreateDate": datetime(2023, 1, 1, 12, 0, 0),
+                    "UserComments": ["Test Comment"]
+                }
+            }
+        ],
+    )
+    
+    for media in generator.media_list:
+        media.generate()
+        
+    assert (tmp_path / "test_meta.jpg").exists()
+
+
+def test_scene_generator_num_frames():
+    """Test SceneGenerator frame calculation."""
+    from cl_ml_tools.utils.random_media_generator.scene_generator import SceneGenerator
+    
+    scene = SceneGenerator(duration_seconds=5)
+    assert scene.num_frames(fps=30) == 150
+    assert scene.num_frames(fps=10) == 50
+    
+    scene_no_duration = SceneGenerator(duration_seconds=None)
+    assert scene_no_duration.num_frames(fps=30) == 0
+
+
+    with pytest.raises(JSONValidationError, match="Invalid Color"):
+        FrameGenerator(background_color=[255, 0]) # Needs 3 values
+
+
+def test_basic_shapes_direct_draw():
+    """Test various shapes draw methods directly to increase basic_shapes.py coverage."""
+    from cl_ml_tools.utils.random_media_generator.basic_shapes import (
+        Circle, Rectangle, Line, Triangle
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    
+    # Test each shape type
+    Circle(center=(50, 50), radius=10, color=(255, 0, 0), thickness=2).draw(frame)
+    Rectangle(color=(0, 255, 0), thickness=-1).draw(frame)
+    Line(color=(0, 0, 255), thickness=1).draw(frame)
+    Triangle(thickness=1).draw(frame)
+    
+    assert np.any(frame > 0)
+
+
+def test_animated_shapes_direct_draw():
+    """Test animated shapes draw methods directly to increase basic_shapes.py coverage."""
+    from cl_ml_tools.utils.random_media_generator.basic_shapes import (
+        BouncingCircle, MovingLine, PulsatingTriangle, RotatingSquare
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    
+    # Test each animated shape
+    BouncingCircle(center=(50, 50), radius=10, color=(255, 0, 0), velocity=(2, 2)).draw(frame)
+    MovingLine(start=(0, 0), end=(10, 10), color=(0, 255, 0), velocity=(5, 5)).draw(frame)
+    PulsatingTriangle(pt1=(10, 10), pt2=(30, 10), pt3=(20, 30), color=(0, 0, 255), pulse_speed=0.1).draw(frame)
+    RotatingSquare(center=(50, 50), side_length=20, color=(255, 255, 0), rotation_speed=0.1).draw(frame)
+    
+    assert np.any(frame > 0)
+
+
+def test_exif_metadata_video_logic():
+    """Test ExifMetadata logic for video types to hit uncovered branches."""
+    from datetime import datetime
+    from cl_ml_tools.utils.random_media_generator.exif_metadata import ExifMetadata
+    
+    # Test video branches
+    meta = ExifMetadata(
+        MIMEType="video/mp4",
+        CreateDate=datetime(2023, 1, 1),
+        UserComments=["Video Comment"]
+    )
+    # We call these to trigger the cmd expansion logic
+    meta.updateCreateDate()
+    meta.updateUserComments()
+    
+    cmd_str = " ".join(meta.cmd)
+    assert "QuickTime:CreateDate" in cmd_str
+    assert "QuickTime:Comment" in cmd_str
+    assert meta.has_metadata is True

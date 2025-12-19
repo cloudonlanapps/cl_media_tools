@@ -6,9 +6,13 @@ Requires ML models downloaded.
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
+from PIL import Image
 
+from cl_ml_tools.plugins.face_detection.algo.face_detector import FaceDetector
 from cl_ml_tools.plugins.face_detection.schema import (
     BoundingBox,
     FaceDetectionOutput,
@@ -125,6 +129,148 @@ def test_face_detection_output_schema_validation():
 # ============================================================================
 # ALGORITHM TESTS
 # ============================================================================
+
+
+@pytest.fixture
+def mock_face_detector():
+    """Fixture for FaceDetector with mocked ONNX session."""
+    with patch("cl_ml_tools.plugins.face_detection.algo.face_detector.ort.InferenceSession") as mock_sess:
+        # Mock session input/output names
+        mock_instance = mock_sess.return_value
+        mock_instance.get_inputs.return_value = [MagicMock(name="input")]
+        mock_instance.get_outputs.return_value = [MagicMock(name="boxes"), MagicMock(name="scores")]
+        
+        with patch("cl_ml_tools.plugins.face_detection.algo.face_detector.get_model_downloader"):
+            with patch("cl_ml_tools.plugins.face_detection.algo.face_detector.Path.exists", return_value=True):
+                detector = FaceDetector(model_path="dummy.onnx")
+                return detector
+
+
+def test_face_detector_preprocess(mock_face_detector):
+    """Test image preprocessing."""
+    img = Image.new("RGB", (1000, 800), color="red")
+    input_array, original_size = mock_face_detector.preprocess(img)
+    
+    assert original_size == (1000, 800)
+    assert input_array.shape == (1, 3, 224, 224)
+    assert input_array.dtype == np.float32
+    assert np.max(input_array) <= 1.0
+
+
+def test_face_detector_calculate_iou(mock_face_detector):
+    """Test IoU calculation."""
+    # Box: [x_center, y_center, width, height]
+    box1 = np.array([0.5, 0.5, 0.2, 0.2], dtype=np.float32)
+    boxes = np.array([
+        [0.5, 0.5, 0.2, 0.2],  # Identical: IoU = 1.0
+        [0.6, 0.5, 0.2, 0.2],  # Half overlap horizontally: IoU = 0.33...
+        [0.8, 0.8, 0.2, 0.2],  # No overlap: IoU = 0.0
+    ], dtype=np.float32)
+    
+    ious = mock_face_detector._calculate_iou(box1, boxes)
+    
+    assert ious[0] == pytest.approx(1.0, abs=1e-4)
+    assert ious[1] == pytest.approx(0.333333, abs=1e-4)
+    assert ious[2] == pytest.approx(0.0, abs=1e-4)
+
+
+def test_face_detector_nms(mock_face_detector):
+    """Test Non-Maximum Suppression."""
+    boxes = np.array([
+        [0.5, 0.5, 0.2, 0.2],
+        [0.51, 0.51, 0.2, 0.2], # Overlaps boxes[0]
+        [0.8, 0.8, 0.1, 0.1],   # Distinct
+    ], dtype=np.float32)
+    scores = np.array([0.9, 0.85, 0.8], dtype=np.float32)
+    
+    keep_indices = mock_face_detector._nms(boxes, scores, iou_threshold=0.5)
+    
+    assert len(keep_indices) == 2
+    assert 0 in keep_indices  # Kept boxes[0] because it has higher score
+    assert 2 in keep_indices  # Kept boxes[2] because it doesn't overlap
+    assert 1 not in keep_indices # Suppressed boxes[1]
+
+
+def test_face_detector_postprocess_center_format(mock_face_detector):
+    """Test postprocessing with center format [x_center, y_center, width, height]."""
+    # Normalized coords [0, 1]
+    boxes = np.array([[[0.5, 0.5, 0.2, 0.2]]], dtype=np.float32)
+    scores = np.array([[[0.9]]], dtype=np.float32)
+    
+    original_size = (1000, 1000)
+    detections = mock_face_detector.postprocess([boxes, scores], original_size)
+    
+    assert len(detections) == 1
+    det = detections[0]
+    # x_center=0.5, width=0.2 -> x1=0.4, x2=0.6
+    assert det["x1"] == pytest.approx(400)
+    assert det["y1"] == pytest.approx(400)
+    assert det["x2"] == pytest.approx(600)
+    assert det["y2"] == pytest.approx(600)
+    assert det["confidence"] == pytest.approx(0.9)
+
+
+def test_face_detector_postprocess_corner_format(mock_face_detector):
+    """Test postprocessing with corner format [x1, y1, x2, y2]."""
+    # If box[2] > 1.0 or box[3] > 1.0, it's considered corner format
+    # Wait, the code says: if box[2] <= 1.0 and box[3] <= 1.0: normalized center
+    # else: [x1, y1, x2, y2]
+    
+    boxes = np.array([[[0.1, 0.2, 0.3, 0.4]]], dtype=np.float32) # Wait, 0.3 <= 1.0
+    # Let's use > 1.0 to trigger corner format
+    boxes = np.array([[[0.1, 0.2, 1.1, 1.2]]], dtype=np.float32)
+    scores = np.array([[[0.8]]], dtype=np.float32)
+    
+    original_size = (1000, 1000)
+    detections = mock_face_detector.postprocess([boxes, scores], original_size)
+    
+    assert len(detections) == 1
+    det = detections[0]
+    # x1=0.1*1000=100, y1=0.2*1000=200, x2=1.1*1000=1100, y2=1.2*1000=1200
+    assert det["x1"] == pytest.approx(100)
+    assert det["y1"] == pytest.approx(200)
+    assert det["x2"] == pytest.approx(1100)
+    assert det["y2"] == pytest.approx(1200)
+
+
+def test_face_detector_postprocess_empty_outputs(mock_face_detector):
+    """Test postprocessing with empty outputs."""
+    assert mock_face_detector.postprocess([], (100, 100)) == []
+    assert mock_face_detector.postprocess([np.array([])], (100, 100)) == []
+
+
+def test_face_detector_postprocess_low_confidence(mock_face_detector):
+    """Test postprocessing filters low confidence detections."""
+    boxes = np.array([[[0.5, 0.5, 0.2, 0.2]]], dtype=np.float32)
+    scores = np.array([[[0.1]]], dtype=np.float32) # Below 0.7
+    
+    detections = mock_face_detector.postprocess([boxes, scores], (100, 100))
+    assert len(detections) == 0
+
+
+def test_face_detector_preprocess_non_rgb(mock_face_detector):
+    """Test preprocessing with non-RGB image."""
+    img = Image.new("L", (100, 100), color=128) # Greyscale
+    input_array, original_size = mock_face_detector.preprocess(img)
+    
+    assert original_size == (100, 100)
+    assert input_array.shape == (1, 3, 224, 224)
+
+
+def test_face_detector_postprocess_single_output(mock_face_detector):
+    """Test postprocessing with insufficient outputs."""
+    outputs = [np.array([[[0.5, 0.5, 0.2, 0.2]]], dtype=np.float32)]
+    detections = mock_face_detector.postprocess(outputs, (100, 100))
+    assert detections == []
+
+
+def test_face_detector_postprocess_no_boxes_after_threshold(mock_face_detector):
+    """Test postprocessing when no boxes remain after confidence thresholding."""
+    boxes = np.array([[[0.5, 0.5, 0.2, 0.2]]], dtype=np.float32)
+    scores = np.array([[[0.1]]], dtype=np.float32)
+    
+    detections = mock_face_detector.postprocess([boxes, scores], (100, 100))
+    assert detections == []
 
 
 @pytest.mark.requires_models

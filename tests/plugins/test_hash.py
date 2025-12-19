@@ -4,14 +4,17 @@ Tests schema validation, MD5/SHA512 algorithms, task execution, routes, and full
 """
 
 import json
+import hashlib
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image
 
 from cl_ml_tools.plugins.hash.algo.generic import sha512hash_generic
 from cl_ml_tools.plugins.hash.algo.image import sha512hash_image
+from cl_ml_tools.plugins.hash.algo.video import sha512hash_video2
 from cl_ml_tools.plugins.hash.algo.md5 import get_md5_hexdigest, validate_md5String
 from cl_ml_tools.plugins.hash.schema import HashOutput, HashParams
 from cl_ml_tools.plugins.hash.task import HashTask
@@ -258,6 +261,98 @@ def test_hash_different_media_types_produce_different_hashes(
 
     # They should be different because image hash uses PIL tobytes()
     assert hash_image != hash_generic
+
+
+# ============================================================================
+# ALGORITHM TESTS - SHA512 Video
+# ============================================================================
+
+
+@pytest.mark.requires_ffmpeg
+def test_sha512_video_algo_with_real_video(sample_video_path: Path):
+    """Test SHA512 video hash with real video."""
+    with open(sample_video_path, "rb") as f:
+        video_bytes = f.read()
+        bytes_io = BytesIO(video_bytes)
+
+    # Mock ffprobe output because MP4 via stdin might not be seekable/streamable
+    # We need to provide a valid CSV row that matches at least one frame in the file
+    # For a 30s HD video, there are definitely many I-frames. 
+    # Let's mock a simple one-frame hash for testing the loop.
+    mock_csv = "0,10,I\n" # offset 0, size 10, type I
+    
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = mock_csv.encode("utf-8")
+    
+    with patch("subprocess.run", return_value=mock_result):
+        hash_bytes = sha512hash_video2(bytes_io)
+
+    assert isinstance(hash_bytes, bytes)
+    assert len(hash_bytes) == 64
+    
+    # Verify the hash matches what we expect (SHA512 of first 10 bytes)
+    expected_hash = hashlib.sha512(video_bytes[:10]).digest()
+    assert hash_bytes == expected_hash
+
+
+@pytest.mark.requires_ffmpeg
+def test_sha512_video_algo_consistency(sample_video_path: Path):
+    """Test SHA512 video hash is consistent."""
+    with open(sample_video_path, "rb") as f:
+        data = f.read()
+
+    bytes_io1 = BytesIO(data)
+    bytes_io2 = BytesIO(data)
+
+    mock_csv = "0,10,I\n10,10,P\n20,10,I\n"
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = mock_csv.encode("utf-8")
+
+    with patch("subprocess.run", return_value=mock_result):
+        hash1 = sha512hash_video2(bytes_io1)
+    
+    with patch("subprocess.run", return_value=mock_result):
+        hash2 = sha512hash_video2(bytes_io2)
+
+    assert hash1 == hash2
+    
+    # Expected: hash(data[0:10] + data[20:30])
+    expected = hashlib.sha512(data[0:10] + data[20:30]).digest()
+    assert hash1 == expected
+
+
+@pytest.mark.requires_ffmpeg
+def test_sha512_video_algo_invalid_csv(sample_video_path: Path):
+    """Test SHA512 video hash handles invalid CSV from ffprobe."""
+    bytes_io = BytesIO(b"data")
+    
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = b"invalid,row\n" # Only 2 columns
+    
+    with patch("subprocess.run", return_value=mock_result):
+        from cl_ml_tools.plugins.hash.algo.video import UnsupportedMediaType
+        with pytest.raises(UnsupportedMediaType, match="CSV data is invalid"):
+            sha512hash_video2(bytes_io)
+
+    # Another case: passes validation but fails in loop (e.g. invalid type)
+    # Actually validate_csv also checks for int types, so we need to bypass it 
+    # Or just hit another branch.
+    # If validate_csv passes, but a row has 4 columns?
+    # Actually iterate over rows.
+    
+    # Let's hit the "Invalid offset or size in CSV" branch
+    # But wait, validate_csv ALREADY checks this.
+    # Ah, sha512hash_video2 calls validate_csv(csv_output, video_size)
+    # THEN it processes the rows again.
+    
+    # Let's hit the "Frame data out of bounds" branch
+    mock_result.stdout = b"1000,10,I\n" # offset 1000 is > video size
+    with patch("subprocess.run", return_value=mock_result):
+        with pytest.raises(UnsupportedMediaType, match="CSV data is invalid"):
+             sha512hash_video2(bytes_io)
 
 
 # ============================================================================
