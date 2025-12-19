@@ -7,7 +7,17 @@ Requires ExifTool to be installed.
 import json
 from pathlib import Path
 
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Sequence
+
 import pytest
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+    from cl_ml_tools import Worker
+    from cl_ml_tools.common.job_repository import JobRepository
+    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.exif.algo.exif_tool_wrapper import MetadataExtractor
 from cl_ml_tools.plugins.exif.schema import ExifMetadataOutput, ExifMetadataParams
@@ -160,7 +170,7 @@ def test_exif_algo_nonexistent_file():
 def test_exif_algo_error_handling_invalid_file(tmp_path: Path):
     """Test EXIF extraction handles invalid image files."""
     invalid_file = tmp_path / "invalid.jpg"
-    invalid_file.write_text("not an image")
+    _ = invalid_file.write_text("not an image")
 
     extractor = MetadataExtractor()
 
@@ -335,7 +345,7 @@ def test_exif_task_setup_without_exiftool():
 # ============================================================================
 
 
-def test_exif_route_creation(api_client):
+def test_exif_route_creation(api_client: "TestClient"):
     """Test exif route is registered."""
     response = api_client.get("/openapi.json")
     assert response.status_code == 200
@@ -345,13 +355,13 @@ def test_exif_route_creation(api_client):
 
 
 @pytest.mark.requires_exiftool
-def test_exif_route_job_submission(api_client, sample_image_path: Path):
+def test_exif_route_job_submission(api_client: "TestClient", sample_image_path: Path):
     """Test job submission via exif route."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
             "/jobs/exif",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"priority": 5},
+            data={"priority": "5"},
         )
 
     assert response.status_code == 200
@@ -363,7 +373,7 @@ def test_exif_route_job_submission(api_client, sample_image_path: Path):
 
 
 @pytest.mark.requires_exiftool
-def test_exif_route_job_submission_with_tags(api_client, sample_image_path: Path):
+def test_exif_route_job_submission_with_tags(api_client: "TestClient", sample_image_path: Path):
     """Test job submission with specific tags."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
@@ -389,7 +399,11 @@ def test_exif_route_job_submission_with_tags(api_client, sample_image_path: Path
 @pytest.mark.integration
 @pytest.mark.requires_exiftool
 async def test_exif_full_job_lifecycle(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow: API → Repository → Worker → Output."""
     # 1. Submit job via API
@@ -397,7 +411,7 @@ async def test_exif_full_job_lifecycle(
         response = api_client.post(
             "/jobs/exif",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"priority": 5},
+            data={"priority": "5"},
         )
 
     assert response.status_code == 200
@@ -408,7 +422,7 @@ async def test_exif_full_job_lifecycle(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 
@@ -421,7 +435,11 @@ async def test_exif_full_job_lifecycle(
 @pytest.mark.integration
 @pytest.mark.requires_exiftool
 async def test_exif_full_job_lifecycle_with_gps(
-    api_client, worker, job_repository, exif_test_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    exif_test_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow with GPS EXIF data."""
     # 1. Submit job via API
@@ -440,7 +458,7 @@ async def test_exif_full_job_lifecycle_with_gps(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 

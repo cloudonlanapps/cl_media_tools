@@ -3,10 +3,18 @@
 Tests schema validation, image & video thumbnail generation, aspect ratio handling, task execution, routes, and full job lifecycle.
 """
 
+import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Sequence
 
 import pytest
 from PIL import Image
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+    from cl_ml_tools import Worker
+    from cl_ml_tools.common.job_repository import JobRepository
+    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.media_thumbnail.algo.image_thumbnail import (
     image_thumbnail,
@@ -372,7 +380,7 @@ async def test_media_thumbnail_task_progress_callback(sample_image_path: Path, t
 # ============================================================================
 
 
-def test_media_thumbnail_route_creation(api_client):
+def test_media_thumbnail_route_creation(api_client: "TestClient"):
     """Test media_thumbnail route is registered."""
     response = api_client.get("/openapi.json")
     assert response.status_code == 200
@@ -381,13 +389,13 @@ def test_media_thumbnail_route_creation(api_client):
     assert "/jobs/media_thumbnail" in openapi["paths"]
 
 
-def test_media_thumbnail_route_job_submission(api_client, sample_image_path: Path):
+def test_media_thumbnail_route_job_submission(api_client: "TestClient", sample_image_path: Path):
     """Test job submission via media_thumbnail route."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
             "/jobs/media_thumbnail",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"width": 200, "height": 150, "priority": 5},
+            data={"width": "200", "height": "150", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -398,13 +406,13 @@ def test_media_thumbnail_route_job_submission(api_client, sample_image_path: Pat
     assert data["task_type"] == "media_thumbnail"
 
 
-def test_media_thumbnail_route_width_only(api_client, sample_image_path: Path):
+def test_media_thumbnail_route_width_only(api_client: "TestClient", sample_image_path: Path):
     """Test job submission with width only."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
             "/jobs/media_thumbnail",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"width": 300, "priority": 5},
+            data={"width": "300", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -417,7 +425,11 @@ def test_media_thumbnail_route_width_only(api_client, sample_image_path: Path):
 
 @pytest.mark.integration
 async def test_media_thumbnail_full_job_lifecycle(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow: API → Repository → Worker → Output."""
     # 1. Submit job via API
@@ -425,7 +437,7 @@ async def test_media_thumbnail_full_job_lifecycle(
         response = api_client.post(
             "/jobs/media_thumbnail",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"width": 200, "height": 150, "priority": 5},
+            data={"width": "200", "height": "150", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -436,7 +448,7 @@ async def test_media_thumbnail_full_job_lifecycle(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 
@@ -448,7 +460,11 @@ async def test_media_thumbnail_full_job_lifecycle(
 
 @pytest.mark.integration
 async def test_media_thumbnail_full_job_lifecycle_aspect_ratio(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow with aspect ratio preservation."""
     # 1. Submit job via API
@@ -456,7 +472,7 @@ async def test_media_thumbnail_full_job_lifecycle_aspect_ratio(
         response = api_client.post(
             "/jobs/media_thumbnail",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"width": 300, "maintain_aspect_ratio": "true", "priority": 6},
+            data={"width": "300", "maintain_aspect_ratio": "true", "priority": "6"},
         )
 
     assert response.status_code == 200
@@ -467,6 +483,6 @@ async def test_media_thumbnail_full_job_lifecycle_aspect_ratio(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"

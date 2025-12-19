@@ -3,10 +3,11 @@
 Targets error handling, connection failures, and edge cases in MQTTBroadcaster and NoOpBroadcaster.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from paho.mqtt.client import MQTTMessage
+from paho.mqtt.client import Client, MQTTMessage
 
 from cl_ml_tools.utils.mqtt.mqtt_impl import BroadcasterBase, MQTTBroadcaster, NoOpBroadcaster
 
@@ -14,11 +15,13 @@ from cl_ml_tools.utils.mqtt.mqtt_impl import BroadcasterBase, MQTTBroadcaster, N
 # BroadcasterBase Tests
 # ============================================================================
 
+class ConcreteBroadcaster(BroadcasterBase):
+    """Concrete subclass for testing BroadcasterBase defaults."""
+    pass
+
 def test_broadcaster_base_defaults():
     """Test default implementations in BroadcasterBase."""
-    # Since it's a Protocol, we can't instantiate it directly,
-    # but we can test the base class logic if mixed in or just call the methods.
-    base = BroadcasterBase()
+    base = ConcreteBroadcaster()
     assert base.connect() is False
     assert base.publish_event(topic="t", payload="p") is False
     assert base.set_will(topic="t", payload="p") is False
@@ -126,14 +129,15 @@ def test_mqtt_broadcaster_unsubscribe_errors():
 def test_mqtt_broadcaster_on_connect_fail():
     """Test _on_connect with non-zero reason code."""
     broadcaster = MQTTBroadcaster("localhost", 1883)
-    broadcaster._on_connect(None, None, None, 5, None)
+    broadcaster._on_connect(None, None, None, 5, None)  # pyright: ignore[reportPrivateUsage, reportArgumentType]
     assert broadcaster.connected is False
 
 
 def test_mqtt_broadcaster_on_message_callback_error():
     """Test callback failures don't crash the message loop."""
     broadcaster = MQTTBroadcaster("localhost", 1883)
-    def failing_callback(t, p): raise Exception("callback explosion")
+    def failing_callback(t: str, p: Any): # pyright: ignore[reportUnusedParameter]
+        raise Exception("callback explosion")
 
     broadcaster.subscriptions["sub1"] = ("test/topic", failing_callback)
 
@@ -142,7 +146,7 @@ def test_mqtt_broadcaster_on_message_callback_error():
     msg.payload = b"test payload"
 
     # Should log error but not raise
-    broadcaster._on_message(None, None, msg)
+    broadcaster._on_message(None, None, msg) # pyright: ignore[reportPrivateUsage, reportArgumentType]
 
 
 def test_mqtt_broadcaster_topic_matches_edge_cases():
@@ -159,7 +163,7 @@ def test_mqtt_broadcaster_topic_matches_edge_cases():
     assert broadcaster._topic_matches("home/+/temp", "home/living/dining/temp") is False # Multi level
 
     # No wildcard mismatch
-    assert broadcaster._topic_matches("fixed/topic", "different/topic") is False
+    assert broadcaster._topic_matches("fixed/topic", "different/topic") is False # pyright: ignore[reportPrivateUsage]
 
 
 # ============================================================================

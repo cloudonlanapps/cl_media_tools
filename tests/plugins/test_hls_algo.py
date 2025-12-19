@@ -1,5 +1,6 @@
 """Unit tests for FFMPEGCommands in hls_streaming plugin."""
 
+from pathlib import Path
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -13,12 +14,12 @@ from cl_ml_tools.plugins.hls_streaming.algo.ffmpeg_to_hls import (
 
 
 @pytest.fixture
-def ffmpeg_commands():
+def ffmpeg_commands() -> FFMPEGCommands:
     """Fixture for FFMPEGCommands instance."""
     return FFMPEGCommands()
 
 
-def test_to_hls_input_not_found(ffmpeg_commands, tmp_path):
+def test_to_hls_input_not_found(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):
     """Test to_hls raises NotFound if input file does NOT exist."""
     input_file = tmp_path / "nonexistent.mp4"
     output_dir = tmp_path / "output"
@@ -27,20 +28,20 @@ def test_to_hls_input_not_found(ffmpeg_commands, tmp_path):
         ffmpeg_commands.to_hls(str(input_file), str(output_dir))
 
 
-def test_to_hls_output_dir_not_found(ffmpeg_commands, tmp_path):
+def test_to_hls_output_dir_not_found(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):
     """Test to_hls raises NotFound if output directory does NOT exist."""
     input_file = tmp_path / "input.mp4"
-    input_file.write_bytes(b"data")
+    _ = input_file.write_bytes(b"data")
     output_dir = tmp_path / "nonexistent_dir"
 
     with pytest.raises(NotFound, match="Output directory does not exist"):
         ffmpeg_commands.to_hls(str(input_file), str(output_dir))
 
 
-def test_to_hls_success(ffmpeg_commands, tmp_path):
+def test_to_hls_success(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):
     """Test successful to_hls execution."""
     input_file = tmp_path / "input.mp4"
-    input_file.write_bytes(b"data")
+    _ = input_file.write_bytes(b"data")
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
@@ -51,21 +52,21 @@ def test_to_hls_success(ffmpeg_commands, tmp_path):
 
     with patch("subprocess.run", return_value=mock_result):
         # In success case, ffmpeg would have created this file
-        playlist_file.write_text("#EXTM3U")
+        _ = playlist_file.write_text("#EXTM3U")
 
         ffmpeg_commands.to_hls(str(input_file), str(output_dir))
 
-        args, _ = subprocess.run.call_args
-        command = args[0]
-        assert "ffmpeg" in command
-        assert str(input_file) in command
-        assert "adaptive.m3u8" in command
+        args, _ = subprocess.run.call_args # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        command = args[0] # pyright: ignore[reportUnknownVariableType]
+        assert "ffmpeg" in command # pyright: ignore[reportUnknownArgumentType]
+        assert str(input_file) in command # pyright: ignore[reportUnknownArgumentType]
+        assert "adaptive.m3u8" in command # pyright: ignore[reportUnknownArgumentType]
 
 
-def test_to_hls_ffmpeg_failure(ffmpeg_commands, tmp_path):
+def test_to_hls_ffmpeg_failure(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):
     """Test to_hls handles ffmpeg failure."""
     input_file = tmp_path / "input.mp4"
-    input_file.write_bytes(b"data")
+    _ = input_file.write_bytes(b"data")
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
@@ -78,10 +79,10 @@ def test_to_hls_ffmpeg_failure(ffmpeg_commands, tmp_path):
             ffmpeg_commands.to_hls(str(input_file), str(output_dir))
 
 
-def test_to_hls_subprocess_exception(ffmpeg_commands, tmp_path):
+def test_to_hls_subprocess_exception(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):
     """Test to_hls handles subprocess exception."""
     input_file = tmp_path / "input.mp4"
-    input_file.write_bytes(b"data")
+    _ = input_file.write_bytes(b"data")
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
@@ -90,10 +91,10 @@ def test_to_hls_subprocess_exception(ffmpeg_commands, tmp_path):
             ffmpeg_commands.to_hls(str(input_file), str(output_dir))
 
 
-def test_to_hls_playlist_not_created(ffmpeg_commands, tmp_path):
+def test_to_hls_playlist_not_created(ffmpeg_commands: FFMPEGCommands, tmp_path: Path):
     """Test to_hls raises NotFound if playlist is not created by ffmpeg."""
     input_file = tmp_path / "input.mp4"
-    input_file.write_bytes(b"data")
+    _ = input_file.write_bytes(b"data")
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 

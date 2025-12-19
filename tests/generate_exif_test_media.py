@@ -58,7 +58,7 @@ def generate_gps_image() -> Path:
     output_path = TARGET_DIR / "with_gps.jpg"
     create_blank_image(output_path)
 
-    subprocess.run(
+    _ = subprocess.run(
         [
             "exiftool",
             "-overwrite_original",
@@ -88,7 +88,7 @@ def generate_camera_settings_image() -> Path:
     output_path = TARGET_DIR / "with_camera.jpg"
     create_blank_image(output_path)
 
-    subprocess.run(
+    _ = subprocess.run(
         [
             "exiftool",
             "-overwrite_original",
@@ -119,7 +119,7 @@ def generate_datetime_image() -> Path:
     output_path = TARGET_DIR / "with_datetime.jpg"
     create_blank_image(output_path)
 
-    subprocess.run(
+    _ = subprocess.run(
         [
             "exiftool",
             "-overwrite_original",
@@ -142,7 +142,7 @@ def generate_all_metadata_image() -> Path:
     output_path = TARGET_DIR / "with_all.jpg"
     create_blank_image(output_path)
 
-    subprocess.run(
+    _ = subprocess.run(
         [
             "exiftool",
             "-overwrite_original",
@@ -176,7 +176,7 @@ def generate_no_exif_image() -> Path:
     create_blank_image(output_path)
 
     # Strip all EXIF data
-    subprocess.run(
+    _ = subprocess.run(
         [
             "exiftool",
             "-all=",
@@ -200,7 +200,7 @@ def update_manifest(generated_files: list[Path]) -> None:
         generated_files: List of generated image file paths
     """
     # Read existing manifest
-    existing_entries = []
+    existing_entries: list[str] = []
     if MANIFEST_FILE.exists():
         with open(MANIFEST_FILE, "r", encoding="utf-8") as f:
             for line in f:
@@ -209,7 +209,7 @@ def update_manifest(generated_files: list[Path]) -> None:
                     existing_entries.append(line)
 
     # Add new entries
-    new_entries = []
+    new_entries: list[str] = []
     for file_path in generated_files:
         relative_path = file_path.relative_to(TESTS_DIR)
         md5_hash = calculate_md5(file_path)
@@ -220,18 +220,18 @@ def update_manifest(generated_files: list[Path]) -> None:
     from datetime import datetime
 
     with open(MANIFEST_FILE, "w", encoding="utf-8") as f:
-        f.write("# Test Media Manifest\n")
-        f.write(f"# Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write("# Source: /Users/anandasarangaram/Work/test_media\n")
-        f.write("\n")
+        _ = f.write("# Test Media Manifest\n")
+        _ = f.write(f"# Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _ = f.write("# Source: /Users/anandasarangaram/Work/test_media\n")
+        _ = f.write("\n")
 
         for entry in existing_entries:
-            f.write(entry + "\n")
+            _ = f.write(entry + "\n")
 
         if new_entries:
-            f.write("\n# Generated EXIF test images\n")
+            _ = f.write("\n# Generated EXIF test images\n")
             for entry in new_entries:
-                f.write(entry + "\n")
+                _ = f.write(entry + "\n")
 
     print(f"\n✓ Updated manifest: {MANIFEST_FILE.relative_to(TESTS_DIR)}")
     print(f"  Added {len(new_entries)} EXIF test images")

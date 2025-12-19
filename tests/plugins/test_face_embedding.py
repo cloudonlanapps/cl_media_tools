@@ -4,10 +4,19 @@ Tests schema validation, embedding generation with quality scores, normalization
 Requires ML models downloaded.
 """
 
+import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Sequence
 
 import numpy as np
 import pytest
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+
+    from cl_ml_tools import Worker
+    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
+    from cl_ml_tools.common.job_repository import JobRepository
 
 from cl_ml_tools.plugins.face_embedding.schema import (
     FaceEmbeddingOutput,
@@ -217,7 +226,7 @@ def test_face_embedding_algo_error_handling_invalid_file(tmp_path: Path):
     from cl_ml_tools.plugins.face_embedding.algo.face_embedder import FaceEmbedder
 
     invalid_file = tmp_path / "invalid.jpg"
-    invalid_file.write_text("not an image")
+    _ = invalid_file.write_text("not an image")
 
     embedder = FaceEmbedder()
 
@@ -248,13 +257,27 @@ async def test_face_embedding_task_run_success(sample_image_path: Path, tmp_path
     job_id = "test-job-123"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
+        def create_directory(self, job_id: str) -> None:
+            pass
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def remove(self, job_id: str) -> bool:
+            return True
+
+        async def save(
+            self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True
+        ) -> Any:
+            return None
+
+        async def open(self, job_id: str, relative_path: str) -> Any:
+            return None
+
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "embedding.npy"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -279,11 +302,25 @@ async def test_face_embedding_task_run_file_not_found(tmp_path: Path):
     job_id = "test-job-789"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
+        def create_directory(self, job_id: str) -> None:
+            pass
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
-            return str(tmp_path / "output" / "embedding.npy")
+        def remove(self, job_id: str) -> bool:
+            return True
+
+        async def save(
+            self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True
+        ) -> Any:
+            return None
+
+        async def open(self, job_id: str, relative_path: str) -> Any:
+            return None
+
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
+            return tmp_path / "output" / "embedding.npy"
 
     storage = MockStorage()
 
@@ -296,7 +333,7 @@ async def test_face_embedding_task_run_file_not_found(tmp_path: Path):
 # ============================================================================
 
 
-def test_face_embedding_route_creation(api_client):
+def test_face_embedding_route_creation(api_client: "TestClient"):
     """Test face_embedding route is registered."""
     response = api_client.get("/openapi.json")
     assert response.status_code == 200
@@ -306,13 +343,13 @@ def test_face_embedding_route_creation(api_client):
 
 
 @pytest.mark.requires_models
-def test_face_embedding_route_job_submission(api_client, sample_image_path: Path):
+def test_face_embedding_route_job_submission(api_client: "TestClient", sample_image_path: Path):
     """Test job submission via face_embedding route."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
             "/jobs/face_embedding",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"normalize": "true", "priority": 5},
+            data={"normalize": "true", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -331,7 +368,11 @@ def test_face_embedding_route_job_submission(api_client, sample_image_path: Path
 @pytest.mark.integration
 @pytest.mark.requires_models
 async def test_face_embedding_full_job_lifecycle(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow: API → Repository → Worker → Output."""
     # 1. Submit job via API
@@ -339,7 +380,7 @@ async def test_face_embedding_full_job_lifecycle(
         response = api_client.post(
             "/jobs/face_embedding",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"normalize": "true", "priority": 5},
+            data={"normalize": "true", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -350,7 +391,7 @@ async def test_face_embedding_full_job_lifecycle(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 
@@ -364,7 +405,11 @@ async def test_face_embedding_full_job_lifecycle(
 @pytest.mark.integration
 @pytest.mark.requires_models
 async def test_face_embedding_full_job_lifecycle_with_quality(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow and verify quality score is computed."""
     # 1. Submit job via API
@@ -372,7 +417,7 @@ async def test_face_embedding_full_job_lifecycle_with_quality(
         response = api_client.post(
             "/jobs/face_embedding",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"normalize": "true", "priority": 6},
+            data={"normalize": "true", "priority": "6"},
         )
 
     assert response.status_code == 200

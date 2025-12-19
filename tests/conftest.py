@@ -9,7 +9,9 @@ This module provides:
 
 import hashlib
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, override
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,7 +32,7 @@ def pytest_addoption(parser):
     parser.addini(
         "test_storage_base_dir",
         help="Base directory for test storage",
-        default="/tmp/cl_ml_tools_test_storage"
+        default="/tmp/cl_ml_tools_test_storage",
     )
 
 
@@ -181,10 +183,7 @@ def sample_image_path() -> Path:
         if images:
             return images[0]
 
-    pytest.fail(
-        "No test images available.\n"
-        "Run: python tests/setup_test_media.py"
-    )
+    pytest.fail("No test images available.\nRun: python tests/setup_test_media.py")
 
 
 @pytest.fixture
@@ -230,10 +229,7 @@ def exif_test_image_path() -> Path:
         if images:
             return images[0]
 
-    pytest.fail(
-        "EXIF test images not generated.\n"
-        "Run: python tests/generate_exif_test_media.py"
-    )
+    pytest.fail("EXIF test images not generated.\nRun: python tests/generate_exif_test_media.py")
 
 
 @pytest.fixture
@@ -269,8 +265,10 @@ def synthetic_image(tmp_path: Path) -> Path:
 @pytest.fixture
 def job_repository():
     """Provide in-memory job repository for testing."""
+    from typing import Any, Sequence, override
+
     from cl_ml_tools.common.job_repository import JobRepository
-    from cl_ml_tools.common.schema_job_record import JobRecord, JobStatus
+    from cl_ml_tools.common.schema_job_record import JobRecord, JobRecordUpdate, JobStatus
 
     class InMemoryJobRepository(JobRepository):
         """In-memory implementation for testing."""
@@ -295,11 +293,7 @@ def job_repository():
             return job
 
         def list_pending(self, limit: int = 100) -> list[JobRecord]:
-            return [
-                job
-                for job in self._jobs.values()
-                if job.status == JobStatus.QUEUED
-            ][:limit]
+            return [job for job in self._jobs.values() if job.status == JobStatus.QUEUED][:limit]
 
         def delete(self, job_id: str) -> bool:
             if job_id in self._jobs:
@@ -308,37 +302,39 @@ def job_repository():
             return False
 
         # Protocol-required methods
+        @override
         def add_job(
             self,
             job: JobRecord,
             created_by: str | None = None,
             priority: int | None = None,
         ) -> bool:
-            """Save job to repository."""
-            # Note: created_by and priority are metadata not stored in JobRecord
-            # In a real implementation, these would be stored separately
-            _ = created_by  # Ignored in test implementation
-            _ = priority    # Ignored in test implementation
+            """Protocol alias for save."""
             self._jobs[job.job_id] = job
             return True
 
+        @override
         def get_job(self, job_id: str) -> JobRecord | None:
-            """Get job by ID (Protocol alias for get)."""
-            return self.get(job_id)
+            """Protocol alias for get."""
+            return self._jobs.get(job_id)
 
-        def update_job(self, job_id: str, updates) -> bool:
+        @override
+        def update_job(self, job_id: str, updates: JobRecordUpdate) -> bool:
             """Update job fields (Protocol-compliant)."""
             if job_id not in self._jobs:
                 return False
             job = self._jobs[job_id]
             # Convert Pydantic model to dict if needed
-            updates_dict = updates.model_dump(exclude_none=True) if hasattr(updates, 'model_dump') else updates
+            updates_dict: dict[str, Any] = (
+                updates.model_dump(exclude_none=True) if hasattr(updates, "model_dump") else updates
+            )  # pyright: ignore[reportUnknownArgumentType]
             for key, value in updates_dict.items():
                 if hasattr(job, key):
                     setattr(job, key, value)
             return True
 
-        def fetch_next_job(self, task_types) -> JobRecord | None:
+        @override
+        def fetch_next_job(self, task_types: Sequence[str]) -> JobRecord | None:
             """Atomically fetch and claim next queued job."""
             for job in self._jobs.values():
                 if job.status == JobStatus.queued and job.task_type in task_types:
@@ -346,6 +342,7 @@ def job_repository():
                     return job
             return None
 
+        @override
         def delete_job(self, job_id: str) -> bool:
             """Delete job (Protocol alias for delete)."""
             return self.delete(job_id)

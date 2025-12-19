@@ -5,8 +5,18 @@ Tests schema validation, format conversion algorithms (JPEG↔PNG), task executi
 
 from pathlib import Path
 
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Sequence
+
 import pytest
 from PIL import Image
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+    from cl_ml_tools import Worker
+    from cl_ml_tools.common.job_repository import JobRepository
+    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.image_conversion.algo.image_convert import (
     get_pil_format,
@@ -327,11 +337,14 @@ async def test_image_conversion_task_run_file_not_found(tmp_path: Path):
     job_id = "test-job-789"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
-            return str(tmp_path / "output" / "converted.png")
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
+            return tmp_path / "output" / "converted.png"
 
     storage = MockStorage()
 
@@ -380,7 +393,7 @@ async def test_image_conversion_task_progress_callback(sample_image_path: Path, 
 # ============================================================================
 
 
-def test_image_conversion_route_creation(api_client):
+def test_image_conversion_route_creation(api_client: "TestClient"):
     """Test image_conversion route is registered."""
     response = api_client.get("/openapi.json")
     assert response.status_code == 200
@@ -389,13 +402,13 @@ def test_image_conversion_route_creation(api_client):
     assert "/jobs/image_conversion" in openapi["paths"]
 
 
-def test_image_conversion_route_job_submission(api_client, sample_image_path: Path):
+def test_image_conversion_route_job_submission(api_client: "TestClient", sample_image_path: Path):
     """Test job submission via image_conversion route."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
             "/jobs/image_conversion",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"format": "png", "quality": 90, "priority": 5},
+            data={"format": "png", "quality": "90", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -406,13 +419,13 @@ def test_image_conversion_route_job_submission(api_client, sample_image_path: Pa
     assert data["task_type"] == "image_conversion"
 
 
-def test_image_conversion_route_default_quality(api_client, sample_image_path: Path):
+def test_image_conversion_route_default_quality(api_client: "TestClient", sample_image_path: Path):
     """Test image_conversion route uses default quality."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
             "/jobs/image_conversion",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"format": "png", "priority": 5},
+            data={"format": "png", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -425,7 +438,11 @@ def test_image_conversion_route_default_quality(api_client, sample_image_path: P
 
 @pytest.mark.integration
 async def test_image_conversion_full_job_lifecycle(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow: API → Repository → Worker → Output."""
     # 1. Submit job via API
@@ -433,7 +450,7 @@ async def test_image_conversion_full_job_lifecycle(
         response = api_client.post(
             "/jobs/image_conversion",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"format": "png", "quality": 85, "priority": 5},
+            data={"format": "png", "quality": "85", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -444,7 +461,7 @@ async def test_image_conversion_full_job_lifecycle(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 
@@ -456,7 +473,11 @@ async def test_image_conversion_full_job_lifecycle(
 
 @pytest.mark.integration
 async def test_image_conversion_full_job_lifecycle_jpg_to_webp(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow converting JPEG to WebP."""
     # 1. Submit job via API
@@ -464,7 +485,7 @@ async def test_image_conversion_full_job_lifecycle_jpg_to_webp(
         response = api_client.post(
             "/jobs/image_conversion",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"format": "webp", "quality": 80, "priority": 6},
+            data={"format": "webp", "quality": "80", "priority": "6"},
         )
 
     assert response.status_code == 200
@@ -475,6 +496,6 @@ async def test_image_conversion_full_job_lifecycle_jpg_to_webp(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"

@@ -42,7 +42,7 @@ def generate_hls_test_video(
     except ImportError as e:
         raise ImportError(
             "OpenCV (cv2) is required for video generation. "
-            "Install with: pip install opencv-python"
+            + "Install with: pip install opencv-python"
         ) from e
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -50,7 +50,8 @@ def generate_hls_test_video(
     # Create multiple scenes for visual variety
     # Each scene is ~5 seconds, so 30 seconds = 6 scenes
     scenes_per_video = duration_seconds // 5
-    scenes = []
+    from cl_ml_tools.utils.random_media_generator.scene_generator import SceneGenerator
+    scenes: list[SceneGenerator] = []
 
     colors = [
         (255, 0, 0),    # Red
@@ -73,7 +74,7 @@ def generate_hls_test_video(
     try:
         logger.info(
             f"Generating test video: {output_path} "
-            f"({duration_seconds}s, {width}x{height} @ {fps}fps)"
+            + f"({duration_seconds}s, {width}x{height} @ {fps}fps)"
         )
 
         generator = VideoGenerator(
@@ -94,7 +95,7 @@ def generate_hls_test_video(
         file_size = output_path.stat().st_size
         logger.info(
             f"Generated test video: {output_path} "
-            f"({file_size:,} bytes, {duration_seconds}s)"
+            + f"({file_size:,} bytes, {duration_seconds}s)"
         )
 
         return output_path
@@ -126,7 +127,6 @@ def ensure_hls_test_videos_exist(videos_dir: Path, count: int = 2) -> list[Path]
     needed = count - len(existing)
     logger.info(f"Generating {needed} test videos for HLS streaming tests")
     videos = existing.copy()
-
     for i in range(len(existing), count):
         video_path = videos_dir / f"test_video_{i+1}.mp4"
         try:

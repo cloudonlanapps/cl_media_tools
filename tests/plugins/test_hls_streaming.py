@@ -6,7 +6,17 @@ Requires FFmpeg to be installed.
 
 from pathlib import Path
 
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Sequence
+
 import pytest
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+    from cl_ml_tools import Worker
+    from cl_ml_tools.common.job_repository import JobRepository
+    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.hls_streaming.schema import (
     HLSStreamingOutput,
@@ -298,13 +308,16 @@ async def test_hls_streaming_task_audio_only_failure(tmp_path: Path):
     job_id = "test-job-audio-only"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
             return tmp_path / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
             output_path = tmp_path / "output" / "hls" / Path(relative_path).name
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+            return output_path
 
     storage = MockStorage()
 
@@ -353,7 +366,7 @@ async def test_hls_streaming_task_with_original(sample_video_path: Path, tmp_pat
 # ============================================================================
 
 
-def test_hls_streaming_route_creation(api_client):
+def test_hls_streaming_route_creation(api_client: "TestClient"):
     """Test hls_streaming route is registered."""
     response = api_client.get("/openapi.json")
     assert response.status_code == 200
@@ -363,7 +376,7 @@ def test_hls_streaming_route_creation(api_client):
 
 
 @pytest.mark.requires_ffmpeg
-def test_hls_streaming_route_job_submission(api_client, sample_video_path: Path):
+def test_hls_streaming_route_job_submission(api_client: "TestClient", sample_video_path: Path):
     """Test job submission via hls_streaming route."""
     with open(sample_video_path, "rb") as f:
         response = api_client.post(
@@ -381,7 +394,7 @@ def test_hls_streaming_route_job_submission(api_client, sample_video_path: Path)
 
 
 @pytest.mark.requires_ffmpeg
-def test_hls_streaming_route_with_custom_variants(api_client, sample_video_path: Path):
+def test_hls_streaming_route_with_custom_variants(api_client: "TestClient", sample_video_path: Path):
     """Test job submission with custom variant configuration."""
     import json
 
@@ -408,7 +421,11 @@ def test_hls_streaming_route_with_custom_variants(api_client, sample_video_path:
 @pytest.mark.integration
 @pytest.mark.requires_ffmpeg
 async def test_hls_streaming_full_job_lifecycle(
-    api_client, worker, job_repository, sample_video_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_video_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow: API → Repository → Worker → Output."""
     # 1. Submit job via API
@@ -416,7 +433,7 @@ async def test_hls_streaming_full_job_lifecycle(
         response = api_client.post(
             "/jobs/hls_streaming",
             files={"file": ("test.mp4", f, "video/mp4")},
-            data={"priority": 5},
+            data={"priority": "5"},
         )
 
     assert response.status_code == 200
@@ -427,7 +444,7 @@ async def test_hls_streaming_full_job_lifecycle(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 
@@ -441,7 +458,11 @@ async def test_hls_streaming_full_job_lifecycle(
 @pytest.mark.integration
 @pytest.mark.requires_ffmpeg
 async def test_hls_streaming_full_job_lifecycle_with_original(
-    api_client, worker, job_repository, sample_video_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_video_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow with original quality included."""
     # 1. Submit job via API
@@ -460,7 +481,7 @@ async def test_hls_streaming_full_job_lifecycle_with_original(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 

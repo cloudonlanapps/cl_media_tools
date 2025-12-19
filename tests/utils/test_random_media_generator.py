@@ -58,7 +58,7 @@ def test_fourcc_codes():
     assert "video/x-matroska" in fourcc
 
     # All FOURCC codes should be integers
-    for mime_type, code in fourcc.items():
+    for _, code in fourcc.items():
         assert isinstance(code, int)
 
 
@@ -106,7 +106,7 @@ def test_media_list_validation_requires_out_dir():
     """Test media list validation fails without out_dir."""
     # This should fail during validation because out_dir is required
     with pytest.raises((ValidationError, JSONValidationError)):
-        _ = RandomMediaGenerator(
+        _ = RandomMediaGenerator( # pyright: ignore[reportCallIssue] - Testing missing out_dir
             media_list=[
                 {
                     "MIMEType": "image/jpeg",
@@ -124,7 +124,7 @@ def test_media_list_validation_with_image_type(tmp_path: Path):
     with pytest.raises((ValidationError, JSONValidationError)):
         _ = RandomMediaGenerator(
             out_dir=str(tmp_path),
-            media_list=[
+            media_list=[ # pyright: ignore[reportArgumentType]
                 {
                     "MIMEType": "image/jpeg",
                     "width": 800,
@@ -141,7 +141,7 @@ def test_media_list_validation_with_video_type(tmp_path: Path):
     with pytest.raises((ValidationError, JSONValidationError)):
         _ = RandomMediaGenerator(
             out_dir=str(tmp_path),
-            media_list=[
+            media_list=[ # pyright: ignore[reportArgumentType]
                 {
                     "MIMEType": "video/mp4",
                     "width": 1920,
@@ -158,7 +158,7 @@ def test_media_list_validation_invalid_mime_type(tmp_path: Path):
     with pytest.raises((ValidationError, TypeError)):
         _ = RandomMediaGenerator(
             out_dir=str(tmp_path),
-            media_list=[
+            media_list=[ # pyright: ignore[reportArgumentType]
                 {
                     "MIMEType": "application/pdf",
                     "width": 800,
@@ -255,7 +255,7 @@ def test_random_media_generator_validation_error_message(tmp_path: Path):
     with pytest.raises((ValidationError, JSONValidationError)) as exc_info:
         _ = RandomMediaGenerator(
             out_dir=str(tmp_path),
-            media_list=[
+            media_list=[ # pyright: ignore[reportArgumentType]
                 {
                     "MIMEType": "image/jpeg",
                     "width": 800,
@@ -311,7 +311,7 @@ def test_image_generation_with_shapes(tmp_path: Path):
     """Test actual image generation with various shapes."""
     generator = RandomMediaGenerator(
         out_dir=str(tmp_path),
-        media_list=[
+        media_list=[ # pyright: ignore[reportArgumentType]
             {
                 "MIMEType": "image/jpeg",
                 "width": 100,
@@ -337,7 +337,7 @@ def test_video_generation_with_scenes(tmp_path: Path):
     """Test actual video generation with scenes."""
     generator = RandomMediaGenerator(
         out_dir=str(tmp_path),
-        media_list=[
+        media_list=[ # pyright: ignore[reportArgumentType]
             {
                 "MIMEType": "video/mp4",
                 "width": 160,
@@ -369,7 +369,7 @@ def test_image_generation_with_metadata(tmp_path: Path):
 
     generator = RandomMediaGenerator(
         out_dir=str(tmp_path),
-        media_list=[
+        media_list=[ # pyright: ignore[reportArgumentType]
             {
                 "MIMEType": "image/jpeg",
                 "width": 100,
@@ -403,7 +403,10 @@ def test_scene_generator_num_frames():
 
 
     with pytest.raises(JSONValidationError, match="Invalid Color"):
-        FrameGenerator(background_color=[255, 0]) # Needs 3 values
+        _ = FrameGenerator(background_color=(255, 0, 0)) # Fixed to 3 values, but should still fail if that's what's intended?
+        # Actually, the test was testing that [255, 0] is invalid.
+        # But FrameGenerator expects a tuple or None.
+        _ = FrameGenerator(background_color=[255, 0]) # pyright: ignore[reportArgumentType]
 
 
 def test_basic_shapes_direct_draw():
@@ -417,7 +420,7 @@ def test_basic_shapes_direct_draw():
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
     # Test each shape type
-    Circle(center=(50, 50), radius=10, color=(255, 0, 0), thickness=2).draw(frame)
+    Circle(color=(255, 0, 0), thickness=2).draw(frame)
     Rectangle(color=(0, 255, 0), thickness=-1).draw(frame)
     Line(color=(0, 0, 255), thickness=1).draw(frame)
     Triangle(thickness=1).draw(frame)
@@ -436,10 +439,10 @@ def test_animated_shapes_direct_draw():
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
     # Test each animated shape
-    BouncingCircle(center=(50, 50), radius=10, color=(255, 0, 0), velocity=(2, 2)).draw(frame)
-    MovingLine(start=(0, 0), end=(10, 10), color=(0, 255, 0), velocity=(5, 5)).draw(frame)
-    PulsatingTriangle(pt1=(10, 10), pt2=(30, 10), pt3=(20, 30), color=(0, 0, 255), pulse_speed=0.1).draw(frame)
-    RotatingSquare(center=(50, 50), side_length=20, color=(255, 255, 0), rotation_speed=0.1).draw(frame)
+    BouncingCircle(center=(50, 50), radius=10, color=(255, 0, 0), dx=2, dy=2).draw(frame)
+    MovingLine(center=(50, 50), length=20, angle_degrees=45, color=(0, 255, 0), dx=5, dy=5).draw(frame)
+    PulsatingTriangle(center=(50, 50), base_size=20, color=(0, 0, 255), pulse_speed=0.1).draw(frame)
+    RotatingSquare(center=(50, 50), size=20, color=(255, 255, 0), angular_speed=3).draw(frame)
 
     assert np.any(frame > 0)
 

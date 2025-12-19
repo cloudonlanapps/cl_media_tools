@@ -6,11 +6,18 @@ Requires ML models downloaded.
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Sequence
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 from PIL import Image
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+    from cl_ml_tools import Worker
+    from cl_ml_tools.common.job_repository import JobRepository
+    from cl_ml_tools.common.file_storage import JobStorage, SavedJobFile
 
 from cl_ml_tools.plugins.face_detection.algo.face_detector import FaceDetector
 from cl_ml_tools.plugins.face_detection.schema import (
@@ -148,10 +155,10 @@ def mock_face_detector():
 def test_face_detector_preprocess(mock_face_detector):
     """Test image preprocessing."""
     img = Image.new("RGB", (1000, 800), color="red")
-    input_array, original_size = mock_face_detector.preprocess(img)
+    input_array, original_size = mock_face_detector.preprocess(img) # pyright: ignore[reportUnknownVariableType]
 
     assert original_size == (1000, 800)
-    assert input_array.shape == (1, 3, 224, 224)
+    assert input_array.shape == (1, 3, 224, 224) # pyright: ignore[reportUnknownMemberType]
     assert input_array.dtype == np.float32
     assert np.max(input_array) <= 1.0
 
@@ -166,7 +173,7 @@ def test_face_detector_calculate_iou(mock_face_detector):
         [0.8, 0.8, 0.2, 0.2],  # No overlap: IoU = 0.0
     ], dtype=np.float32)
 
-    ious = mock_face_detector._calculate_iou(box1, boxes)
+    ious = mock_face_detector._calculate_iou(box1, boxes) # pyright: ignore[reportPrivateUsage, reportUnknownVariableType]
 
     assert ious[0] == pytest.approx(1.0, abs=1e-4)
     assert ious[1] == pytest.approx(0.333333, abs=1e-4)
@@ -182,7 +189,7 @@ def test_face_detector_nms(mock_face_detector):
     ], dtype=np.float32)
     scores = np.array([0.9, 0.85, 0.8], dtype=np.float32)
 
-    keep_indices = mock_face_detector._nms(boxes, scores, iou_threshold=0.5)
+    keep_indices = mock_face_detector._nms(boxes, scores, iou_threshold=0.5) # pyright: ignore[reportPrivateUsage, reportUnknownVariableType]
 
     assert len(keep_indices) == 2
     assert 0 in keep_indices  # Kept boxes[0] because it has higher score
@@ -197,7 +204,7 @@ def test_face_detector_postprocess_center_format(mock_face_detector):
     scores = np.array([[[0.9]]], dtype=np.float32)
 
     original_size = (1000, 1000)
-    detections = mock_face_detector.postprocess([boxes, scores], original_size)
+    detections: list[dict[str, Any]] = mock_face_detector.postprocess([boxes, scores], original_size)
 
     assert len(detections) == 1
     det = detections[0]
@@ -221,7 +228,7 @@ def test_face_detector_postprocess_corner_format(mock_face_detector):
     scores = np.array([[[0.8]]], dtype=np.float32)
 
     original_size = (1000, 1000)
-    detections = mock_face_detector.postprocess([boxes, scores], original_size)
+    detections: list[dict[str, Any]] = mock_face_detector.postprocess([boxes, scores], original_size)
 
     assert len(detections) == 1
     det = detections[0]
@@ -243,7 +250,7 @@ def test_face_detector_postprocess_low_confidence(mock_face_detector):
     boxes = np.array([[[0.5, 0.5, 0.2, 0.2]]], dtype=np.float32)
     scores = np.array([[[0.1]]], dtype=np.float32) # Below 0.7
 
-    detections = mock_face_detector.postprocess([boxes, scores], (100, 100))
+    detections: list[dict[str, Any]] = mock_face_detector.postprocess([boxes, scores], (100, 100))
     assert len(detections) == 0
 
 
@@ -259,7 +266,7 @@ def test_face_detector_preprocess_non_rgb(mock_face_detector):
 def test_face_detector_postprocess_single_output(mock_face_detector):
     """Test postprocessing with insufficient outputs."""
     outputs = [np.array([[[0.5, 0.5, 0.2, 0.2]]], dtype=np.float32)]
-    detections = mock_face_detector.postprocess(outputs, (100, 100))
+    detections: list[dict[str, Any]] = mock_face_detector.postprocess(outputs, (100, 100))
     assert detections == []
 
 
@@ -320,7 +327,7 @@ def test_face_detection_algo_error_handling_invalid_file(tmp_path: Path):
     from cl_ml_tools.plugins.face_detection.algo.face_detector import FaceDetector
 
     invalid_file = tmp_path / "invalid.jpg"
-    invalid_file.write_text("not an image")
+    _ = invalid_file.write_text("not an image")
 
     detector = FaceDetector()
 
@@ -351,13 +358,29 @@ async def test_face_detection_task_run_success(sample_image_path: Path, tmp_path
     job_id = "test-job-123"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
+        def create_directory(self, job_id: str) -> None:
+            (tmp_path / job_id).mkdir(parents=True, exist_ok=True)
 
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
-            output_path = tmp_path / "output" / "faces.json"
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            return str(output_path)
+        def remove(self, job_id: str) -> bool:
+            return True
+
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> "SavedJobFile":
+            from cl_ml_tools.common.file_storage import SavedJobFile
+            return SavedJobFile(relative_path=relative_path, size=0, hash=None)
+
+        async def open(self, job_id: str, relative_path: str) -> Any:
+            return None
+
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            if relative_path:
+                return tmp_path / job_id / relative_path
+            return tmp_path / job_id
+
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
+            output_path = tmp_path / job_id / relative_path
+            if mkdirs:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+            return output_path
 
     storage = MockStorage()
 
@@ -369,7 +392,7 @@ async def test_face_detection_task_run_success(sample_image_path: Path, tmp_path
     assert output.image_height > 0
 
     # Verify output file
-    output_file = tmp_path / "output" / "faces.json"
+    output_file = tmp_path / job_id / "output" / "faces.json"
     assert output_file.exists()
 
     with open(output_file) as f:
@@ -393,11 +416,14 @@ async def test_face_detection_task_run_file_not_found(tmp_path: Path):
     job_id = "test-job-789"
 
     class MockStorage:
-        def resolve_path(self, job_id: str, relative_path: str) -> Path:
-            return tmp_path / job_id / relative_path
-
-        def allocate_path(self, job_id: str, relative_path: str) -> str:
-            return str(tmp_path / "output" / "faces.json")
+        def create_directory(self, job_id: str) -> None: pass
+        def remove(self, job_id: str) -> bool: return True
+        async def save(self, job_id: str, relative_path: str, file: Any, *, mkdirs: bool = True) -> Any: return None
+        async def open(self, job_id: str, relative_path: str) -> Any: return None
+        def resolve_path(self, job_id: str, relative_path: str | None = None) -> Path:
+            return tmp_path / job_id / (relative_path or "")
+        def allocate_path(self, job_id: str, relative_path: str, *, mkdirs: bool = True) -> Path:
+            return tmp_path / "output" / relative_path
 
     storage = MockStorage()
 
@@ -410,7 +436,7 @@ async def test_face_detection_task_run_file_not_found(tmp_path: Path):
 # ============================================================================
 
 
-def test_face_detection_route_creation(api_client):
+def test_face_detection_route_creation(api_client: "TestClient"):
     """Test face_detection route is registered."""
     response = api_client.get("/openapi.json")
     assert response.status_code == 200
@@ -420,13 +446,13 @@ def test_face_detection_route_creation(api_client):
 
 
 @pytest.mark.requires_models
-def test_face_detection_route_job_submission(api_client, sample_image_path: Path):
+def test_face_detection_route_job_submission(api_client: "TestClient", sample_image_path: Path):
     """Test job submission via face_detection route."""
     with open(sample_image_path, "rb") as f:
         response = api_client.post(
             "/jobs/face_detection",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"confidence_threshold": 0.7, "priority": 5},
+            data={"confidence_threshold": "0.7", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -445,7 +471,11 @@ def test_face_detection_route_job_submission(api_client, sample_image_path: Path
 @pytest.mark.integration
 @pytest.mark.requires_models
 async def test_face_detection_full_job_lifecycle(
-    api_client, worker, job_repository, sample_image_path: Path, file_storage
+    api_client: "TestClient",
+    worker: "Worker",
+    job_repository: "JobRepository",
+    sample_image_path: Path,
+    file_storage: "JobStorage",
 ):
     """Test complete flow: API → Repository → Worker → Output."""
     # 1. Submit job via API
@@ -453,7 +483,7 @@ async def test_face_detection_full_job_lifecycle(
         response = api_client.post(
             "/jobs/face_detection",
             files={"file": ("test.jpg", f, "image/jpeg")},
-            data={"confidence_threshold": 0.5, "priority": 5},
+            data={"confidence_threshold": "0.5", "priority": "5"},
         )
 
     assert response.status_code == 200
@@ -464,7 +494,7 @@ async def test_face_detection_full_job_lifecycle(
     assert processed == 1
 
     # 3. Verify completion
-    job = job_repository.get(job_id)
+    job = job_repository.get_job(job_id)
     assert job is not None
     assert job.status == "completed"
 
